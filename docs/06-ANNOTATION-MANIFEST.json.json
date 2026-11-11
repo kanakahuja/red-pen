@@ -1,0 +1,250 @@
+{
+    "success": true,
+    "statusCode": 200,
+    "data": {
+        "name": "Ai evaluation v2",
+        "type": "AIEvaluationV2",
+        "testActivityStatus": "Finished",
+        "userScore": 6.5,
+        "totalScore": 20,
+        "solutions": [],
+        "responseFiles": [
+            {
+                "_id": "6aec1e46b3f0cdbe9cdd7726",
+                "name": "%0AGrief_or_sadness_is_an.pdf",
+                "baseUrl": "https://static.pw.live/",
+                "key": "5b09189f7285894d9130ccd0/096b601f-2bcc-453f-87c4-bd5c21122b83.pdf"
+            }
+        ],
+        "responseImageFiles": [],
+        "goodCopies": [],
+        "enableVideoSolution": false,
+        "tag": "Expired",
+        "tag2": "Attempted",
+        "multiQuestionModelAnswerMappings": [
+            {
+                "question": "<ol>\n<li><span style=\"font-weight: 400;\">Grief or sadness is an emotion natural to all types of loss or significant change. You have been asked to present an analysis of the approaches of Lencho and Kisa Gotami in dealing with their respective losses.&nbsp; Write this presentation draft including your insights, and comparing the approaches of both.</span></li>\n</ol>\n<p><span style=\"font-weight: 400;\">You may begin like this: One acknowledges that Lencho had unwavering faith in God whereas Kisa Gotami in her grief, believed that her son&hellip;&hellip;&hellip;&hellip;&hellip;..however&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;..&nbsp;</span></p>\n<p><span style=\"font-weight: 400;\">CBSE 2024</span></p>",
+                "modelAnswerFile": {
+                    "_id": "6ae1d937cfef4d447a96cc94",
+                    "name": "text_to_pdf_Imagetotext.pdf",
+                    "baseUrl": "https://static.pw.live/",
+                    "key": "5eb393ee95fab7468a79d189/ADMIN/709d40a8-c46e-4c38-bb54-cf6cd106e740.pdf",
+                    "type": "ADMIN"
+                },
+                "modelAnswer": "<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n<p>One acknowledges that Lencho had unwavering faith in God, whereas Kisa Gotami, in her grief, believed that her son could be brought back to life if she found a mustard seed from a house untouched by death. Lencho's faith led him to write a letter to God, asking for help after his crops were destroyed. He trusted that God would provide for his loss.<br aria-hidden=\"true\" />However, Kisa Gotami, devastated by her son&rsquo;s death, went on a quest that ultimately taught her the inevitability of death and the importance of accepting it. While Lencho's approach was rooted in faith and hope, Kisa Gotami's journey led her to enlightenment and acceptance of life's impermanence.<br aria-hidden=\"true\" />Both approaches highlight different paths to coping with loss: one through faith and the other through understanding and acceptance.</p>\n</body>\n</html>",
+                "qbgSubjectId": "6hd5i916nvlq0rh4b5axc50za",
+                "qbgSubjectName": "Art and Culture",
+                "qbgQuestionId": "w0olm8dpigcfzr336aadnznvo"
+            },
+            {
+                "question": "<p>Faith and hope can help people overcome difficult situations, but people express them in different ways. Compare Lencho&rsquo;s faith in God with Nelson Mandela&rsquo;s belief in freedom and equality. Write a presentation draft analysing their approaches.</p>",
+                "modelAnswerFile": {
+                    "_id": "6ae1d98dcfef4d447a96cc95",
+                    "name": "text_to_pdf_Imagetotext (1).pdf",
+                    "baseUrl": "https://static.pw.live/",
+                    "key": "5eb393ee95fab7468a79d189/ADMIN/a9c8c73d-2eec-46cf-9044-2128350ca087.pdf",
+                    "type": "ADMIN"
+                },
+                "modelAnswer": "<!DOCTYPE html>\n<html>\n<head>\n</head>\n<body>\n<div id=\"message-list_1793185631.469899\" aria-setsize=\"-1\">\n<div>\n<div aria-roledescription=\"message\">\n<div>\n<div>\n<div>\n<div>\n<div>\n<div>\n<div draggable=\"false\">\n<div>\n<div>model answer text One acknowledges that Lencho had unwavering faith in God, whereas Nelson Mandela had an unshakable belief in freedom and equality. Lencho believed that God would help him recover from the loss of his crops, while Mandela believed that every individual deserved freedom and dignity. However, Lencho&rsquo;s faith was based on divine intervention, whereas Mandela&rsquo;s hope inspired him to take action against injustice. Despite their different approaches, both remained firm in their beliefs during difficult times. Their stories teach us that faith and hope can provide strength, but determination and a positive outlook are equally important in overcoming challenges.</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</div>\n</body>\n</html>",
+                "qbgSubjectId": "6hd5i916nvlq0rh4b5axc50za",
+                "qbgSubjectName": "Art and Culture",
+                "qbgQuestionId": "ae5q96ad4cilntsp3x9cqu9nh"
+            }
+        ],
+        "qbgQuestionsResult": [
+            {
+                "qbgQuestionId": "w0olm8dpigcfzr336aadnznvo",
+                "userScore": 4,
+                "totalScore": 10,
+                "status": "Finished",
+                "rating": [
+                    {
+                        "key": "introduction",
+                        "label": "Introduction Competence",
+                        "score": 3.5,
+                        "maxScore": 5,
+                        "feedback": [
+                            "- Introduction is Relevant. Both initial attitudes are identified. The comparison is set up directly. Retain this focused opening to establish the discussion."
+                        ]
+                    },
+                    {
+                        "key": "content",
+                        "label": "Content Coverage",
+                        "score": 4,
+                        "maxScore": 5,
+                        "feedback": [
+                            "- Content is Aligned with the demand. The letter and the mustard-seed visits support the analysis. The direct comparison distinguishes the coping approaches. These details keep the discussion evidence-based.",
+                            "- The mustard-seed episode needs its collection condition stated explicitly. Specify the requirement of a house untouched by death. This explains why the visits changed Kisa Gotami's understanding."
+                        ]
+                    },
+                    {
+                        "key": "conclusion",
+                        "label": "Conclusion Competence",
+                        "score": 3.5,
+                        "maxScore": 5,
+                        "feedback": [
+                            "- Conclusion is Relevant. It draws an insight about acceptance. Briefly connect Lencho's faith to the final lesson as well. This gives the closing balanced coverage of both approaches."
+                        ]
+                    },
+                    {
+                        "key": "language",
+                        "label": "Language Proficiency",
+                        "score": 3.5,
+                        "maxScore": 5,
+                        "feedback": [
+                            "- Language use is clear and precise. Parallel phrasing makes the comparison easy to follow. Retain this sentence pattern for clarity."
+                        ]
+                    },
+                    {
+                        "key": "presentation",
+                        "label": "Presentation & Structure Competence",
+                        "score": 2.5,
+                        "maxScore": 5,
+                        "feedback": [
+                            "- Presentation and structure are legible with logical transitions. Separate the opening, character analyses and closing into paragraphs for easier reading. The answer exceeds 150 words. Trim repeated references to grief and revival to keep the draft focused."
+                        ]
+                    }
+                ],
+                "disclaimer": "Your Final Score cannot exceed 60% of the total score as per our UPSC's guidelines",
+                "questionNumber": 1
+            },
+            {
+                "qbgQuestionId": "ae5q96ad4cilntsp3x9cqu9nh",
+                "userScore": 2.5,
+                "totalScore": 10,
+                "status": "Finished",
+                "rating": [
+                    {
+                        "key": "introduction",
+                        "label": "Introduction Competence",
+                        "score": 2,
+                        "maxScore": 5,
+                        "feedback": [
+                            "• Introduction is Partially Correct. Lencho's faith is identified. The second figure does not match the demand. Introduce Mandela's belief alongside Lencho's faith to establish the required comparison."
+                        ]
+                    },
+                    {
+                        "key": "content",
+                        "label": "Content Coverage",
+                        "score": 2,
+                        "maxScore": 5,
+                        "feedback": [
+                            "• Content is Partially Correct. The hailstorm and letter provide specific support for Lencho's reliance on God. Link this evidence to the contrasting approach of the required second figure.",
+                            "• Replace the discussion of grief and mustard seeds with Mandela's commitment to freedom and equality. Explain how this belief motivated action against injustice. This addresses the missing half of the comparison.",
+                            "• The final contrast concerns acceptance of grief. Compare reliance on divine help with belief-driven action instead. This makes the analysis match the required approaches."
+                        ]
+                    },
+                    {
+                        "key": "conclusion",
+                        "label": "Conclusion Competence",
+                        "score": 2,
+                        "maxScore": 5,
+                        "feedback": [
+                            "• Conclusion is Partially Correct. It closes the discussion of loss but does not include Mandela. End with the shared strength of faith and hope in the required figures. Retain their difference in approach for a demand-linked synthesis."
+                        ]
+                    },
+                    {
+                        "key": "language",
+                        "label": "Language Proficiency",
+                        "score": 3.5,
+                        "maxScore": 5,
+                        "feedback": [
+                            "• Language use is clear and generally precise; retain the effective comparative sentence structure when introducing Mandela so that the revised contrast remains easy to follow."
+                        ]
+                    },
+                    {
+                        "key": "presentation",
+                        "label": "Presentation & Structure Competence",
+                        "score": 2.5,
+                        "maxScore": 5,
+                        "feedback": [
+                            "• Presentation and structure are legible but lack section divisions. Add a presentation title and separate opening, comparison and closing sections. The answer exceeds 150 words. Shorten the unrelated grief discussion to improve focus."
+                        ]
+                    }
+                ],
+                "disclaimer": "Your Final Score cannot exceed 60% of the total score as per our UPSC's guidelines",
+                "questionNumber": 2
+            }
+        ],
+        "maxDuration": 0,
+        "submittedAt": "2026-11-05T06:12:30.873Z",
+        "testStudentMappingId": "6aec1dc0bfa44a049f0288e4",
+        "overallRating": [
+            {
+                "key": "introduction",
+                "label": "Introduction Competence",
+                "score": 3,
+                "maxScore": 5,
+                "feedback": []
+            },
+            {
+                "key": "content",
+                "label": "Content Coverage",
+                "score": 3,
+                "maxScore": 5,
+                "feedback": []
+            },
+            {
+                "key": "conclusion",
+                "label": "Conclusion Competence",
+                "score": 3,
+                "maxScore": 5,
+                "feedback": []
+            },
+            {
+                "key": "language",
+                "label": "Language Proficiency",
+                "score": 3.5,
+                "maxScore": 5,
+                "feedback": []
+            },
+            {
+                "key": "presentation",
+                "label": "Presentation & Structure Competence",
+                "score": 2.5,
+                "maxScore": 5,
+                "feedback": []
+            }
+        ],
+        "overallFeedback": [
+            {
+                "key": "summary",
+                "label": "Overall summary",
+                "feedback": [
+                    "Q1 has a relevant introduction, good content and a sound conclusion, while Q1 and Q2 include accurate, relevant points. Begin Q2 with the contrast between Lencho’s religious faith and Mandela’s belief in freedom and equality, replacing the Kisa Gotami discussion. Organise Q1 into clearly spaced comparison points and Q2 as a presentation draft with distinct sections. End Q2 with a synthesis explaining how each figure’s beliefs shaped his actions."
+                ]
+            },
+            {
+                "key": "strengths",
+                "label": "Strengths",
+                "feedback": [
+                    "Introductions good in Q1.",
+                    "Content good in Q1.",
+                    "Conclusions good in Q1.",
+                    "Accurate, relevant points in Q1,2."
+                ]
+            },
+            {
+                "key": "improvements",
+                "label": "Improvements",
+                "feedback": [
+                    "Q1: Specify that the mustard seeds had to come from a household untouched by death; connect Gotami’s acceptance of mortality with Lencho’s enduring faith.",
+                    "Q2: Use Mandela’s struggle against apartheid to illustrate belief translated into collective action for freedom and equality."
+                ]
+            }
+        ],
+        "annotationManifest": {
+            "fileId": "6aec1eb1b3f0cdbe9cdd7730",
+            "file": {
+                "_id": "6aec1eb1b3f0cdbe9cdd7730",
+                "name": "6aec1dc0bfa44a049f0288e4_20261105T061231-c3a6cf2f_manifest.json",
+                "baseUrl": "https://static.pw.live/",
+                "key": "5b09189f7285894d9130ccd0/82542881-7b86-4505-a8c4-26a057d56940.json"
+            },
+            "manifestVersion": 1
+        },
+        "exportCover": {
+            "templateId": "upsc"
+        }
+    }
+}

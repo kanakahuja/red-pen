@@ -1,0 +1,9 @@
+{
+  "name": "redpen",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Answer copy annotation and marking tool.",
+  "scripts": {
+    "dev": "python3 scripts/serve.py 3000"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "success": true,
+  "statusCode": 200,
+  "data": {
+    "name": "Ai evaluation v2",
+    "type": "AIEvaluationV2",
+    "testActivityStatus": "Finished",
+    "userScore": 6.5,
+    "totalScore": 20,
+    "responseFiles": [],
+    "multiQuestionModelAnswerMappings": [],
+    "qbgQuestionsResult": [],
+    "overallRating": [],
+    "overallFeedback": [],
+    "annotationManifest": {
+      "manifestVersion": 1
+    },
+    "exportCover": {
+      "templateId": "upsc"
+    }
+  }
+}

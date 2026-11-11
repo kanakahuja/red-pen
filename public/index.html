@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Redpen</title>
+<meta name="robots" content="noindex">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Reddit+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">Redpen</div>
+    <button class="btn primary" id="btnOpen">New copy</button>
+    <button class="btn" id="btnSetup">Copy details</button>
+    <button class="btn" id="btnQp">Question paper</button>
+    <span class="fname" id="fname"></span>
+    <span class="sp"></span>
+    <button class="ic-btn" id="btnUndo" title="Undo (Ctrl+Z)" disabled>↶</button>
+    <button class="ic-btn" id="btnRedo" title="Redo (Ctrl+Y)" disabled>↷</button>
+    <button class="pill" id="btnFb">Hide annotations</button>
+    <div class="menuWrap">
+      <button class="btn" id="btnMore">More ▾</button>
+      <div class="menu" id="moreMenu" hidden>
+        <button data-act="resume">Open saved JSON</button>
+        <button data-act="draft">Open AI draft</button>
+        <button data-act="reset">Clear all</button>
+      </div>
+    </div>
+    <div class="menuWrap" id="expWrap" hidden>
+      <button class="btn primary" id="btnExport">Export ▾</button>
+      <div class="menu" id="menu" hidden>
+        <button data-act="json">Save JSON</button>
+        <button data-act="pdf">Save annotated PDF</button>
+        <button data-act="html">Save HTML</button>
+      </div>
+    </div>
+    <button class="btn primary" id="btnSubmit">Submit</button>
+  </header>
+
+  <div class="body">
+    <nav class="rail" id="rail" aria-label="Tools"></nav>
+    <main class="main">
+      <div class="opts" id="opts"></div>
+      <div class="hint" id="hint"></div>
+      <div class="split">
+        <aside class="qp" id="qpPane" hidden>
+          <div class="qph"><b>Question paper</b><span class="sp"></span><span class="qpz"><button type="button" id="qpZout" title="Zoom out">−</button><button type="button" id="qpZl" title="Back to 100%">100%</button><button type="button" id="qpZin" title="Zoom in">+</button></span><button class="sm" id="qpLink" hidden>Open link</button><button class="ic-btn" id="qpClose" title="Close">✕</button></div>
+          <div class="qpbody" id="qpBody"></div>
+          <div class="qpgrip" id="qpGrip" role="separator" aria-orientation="vertical" tabindex="0" title="Drag to change how much of the question paper shows"></div>
+        </aside>
+        <div class="stage" id="stage">
+          <div id="wizard" class="wiz"><ol class="wsteps" id="wsteps"></ol><div class="wcard" id="wizBody"></div></div>
+          <div id="pages" data-tool="select" hidden></div>
+          <div id="busy" hidden><span id="busyTxt"></span></div>
+        </div>
+      </div>
+      <div class="pager" id="pager" hidden>
+        <button id="pPrev" title="Previous page">‹</button><span id="pLbl"></span><button id="pNext" title="Next page">›</button>
+        <span class="sep">|</span>
+        <button id="zOut" title="Zoom out">−</button><span id="zLbl">100%</span><button id="zIn" title="Zoom in">+</button>
+      </div>
+    </main>
+    <aside class="side">
+      <div class="tabs"><button data-tab="marks" class="on">Marks</button><button data-tab="fb">Feedback <span id="fbCount"></span></button></div>
+      <div class="sideBody" id="sideBody"></div>
+      <div class="totalBar" id="totalBar"></div>
+    </aside>
+  </div>
+</div>
+<input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
+<input type="file" id="fileJson" accept="application/json,.json" hidden>
+<input type="file" id="fileQp" accept="application/pdf,image/*" hidden>
+<div class="mw" id="mw" hidden><div class="modal" id="modal"></div></div>
+<div id="toast" role="status" hidden></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
