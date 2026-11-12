@@ -1,0 +1,17 @@
+{
+  "_note": "Replace this example with a sanitized real API response. This file is a sample, not the full API contract.",
+  "name": "Sample Paper name",
+  "type": "sample",
+  "testActivityStatus": "completed",
+  "userScore": 0,
+  "totalScore": 0,
+  "responseFiles": [],
+  "multiQuestionModelAnswerMappings": [],
+  "qbgQuestionsResult": [],
+  "overallRating": [],
+  "overallFeedback": {},
+  "annotationManifest": null,
+  "exportCover": null
+}
+
+

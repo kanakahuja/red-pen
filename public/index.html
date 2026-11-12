@@ -12,9 +12,21 @@
 <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+<div id="splash" role="dialog" aria-label="Welcome to Redpen">
+  <div class="sp-in">
+    <div class="sp-logo"><img src="assets/logo.png" alt="" width="200" height="180"></div>
+    <div class="sp-name"><span>R</span><span>e</span><span>d</span><span>p</span><span>e</span><span>n</span></div>
+    <svg class="sp-line" viewBox="0 0 200 14" preserveAspectRatio="none"><path d="M3 9 C 40 2, 70 13, 105 7 S 170 4, 197 8"/></svg>
+    <div class="sp-land">
+      <h1>A <b>Smarter Way</b> to Evaluate Subjective Answer Copies</h1>
+      <!-- <p>Check the copy. Give marks. Write feedback.</p> -->
+      <button class="btn primary big" id="spGo" type="button">Get started</button>
+    </div>
+  </div>
+</div>
 <div class="app">
   <header class="top">
-    <div class="brand">Redpen</div>
+    <div class="brand"><img class="blogo" src="assets/logo.png" alt="" width="30" height="27"><span>Redpen</span></div>
     <button class="btn primary" id="btnOpen">New copy</button>
     <button class="btn" id="btnSetup">Copy details</button>
     <button class="btn" id="btnQp">Question paper</button>

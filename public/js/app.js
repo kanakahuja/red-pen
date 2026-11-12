@@ -77,7 +77,7 @@ function renderOpts(){
   const idx=q?S.questions.indexOf(q):-1, last=idx>=S.questions.length-1;
   let h=`<div class="orow"><div class="grp"><span class="lbl">Question</span>`;
   S.questions.forEach(x=>{ const st=!x.attempted?"na":(qHasWork(x)?"has":""), n=countMarks(S,x.id).total;
-    h+=`<button class="qchip ${x===q?"on":""}" data-q="${x.id}" title="${x.attempted?"":"Not attempted"}">Q${x.id}${n?`<b class="cnt">${n}</b>`:""}<i class="${st}"></i></button>`; });
+    h+=`<button class="qchip ${x===q?"on":""}" data-q="${x.id}" title="${x.attempted?"":"Not attempted. "}${n?n+" drawn on the copy":""}">Q${x.id}${n?`<b class="cnt">${n}</b>`:""}<i class="${st}"></i></button>`; });
   h+=`</div>`;
   if(q) h+=`<div class="grp right"><button type="button" class="btn" data-qprev ${idx<=0?"disabled":""}>‹ Previous</button><button type="button" class="btn ${qDone(q)?"primary":""}" data-qnext>${last?"Finish and check":"Next question ›"}</button></div>`;
   h+=`</div>`;
@@ -508,7 +508,7 @@ function renderMarks(){
   if(!S.questions.length){ w.innerHTML=h+`<div class="empty-s">Add the copy details to start.</div>`; return; }
   h+=`<div class="qlist">`+S.questions.map(x=>{
     const n=countMarks(S,x.id).total, sc=!x.attempted?"Not attempted":(qDone(x)?x.marks+" / "+x.max:"–");
-    return `<button type="button" class="qli ${x.id===q.id?"act":""} ${qDone(x)?"done":""}" data-q="${x.id}"><i></i><b>Q${x.id}</b><span class="sc">${esc(sc)}</span><span class="nm">${n} mark${n===1?"":"s"}</span></button>`;
+    return `<button type="button" class="qli ${x.id===q.id?"act":""} ${qDone(x)?"done":""}" data-q="${x.id}"><i></i><b>Q${x.id}</b><span class="sc">${esc(sc)}</span><span class="nm" title="Marks drawn on the copy for this question">${n} on copy</span></button>`;
   }).join("")+`</div>`;
   h+=`<div class="qcard act" data-q="${q.id}"><div class="qhead"><b>Q${q.id}</b><span>special cases and notes</span></div>`;
   if(q.attempted){
@@ -1010,7 +1010,7 @@ function renderWizard() {
   } else if (wiz.step === 2) {
     const f = detailsForm(true); body.innerHTML = f.html; f.mount();
   } else {
-    const m = S.meta, pq = qp.has && qp.name ? qp.name : (m.paperLink ? "Link" : "None");
+    const m = S.meta, pq = qp.has && qp.name ? qp.name : (m.paperLink ? "Link" : "Not added");
     const det = [TEAMS[S.cohort], m.subject, m.test, S.cohort === "foundation" ? m.board + " class " + m.klass : "", S.questions.length + " questions", S.testTotal + " marks"].filter(Boolean).join(" · ");
     const p = wiz.pending;
     body.innerHTML = `<h2>Upload the student’s answer copy</h2>
@@ -1171,3 +1171,8 @@ stage.addEventListener("drop", (e) => {
 window.addEventListener("beforeunload", (e) => { flushSave(); if (dirty && S.anns.length) { e.preventDefault(); e.returnValue = ""; } });
 
 buildRail(); renderAll(); resetHist(); updatePager(); openWizard(true);
+// start-up: one screen (logo animation, headline, tagline, Get started); "Get started" opens the question paper page
+{ const sp = $("#splash"); if (sp) { let gone = false;
+  const bye = () => { if (gone) return; gone = true; sp.classList.add("out"); setTimeout(() => sp.remove(), 700); };
+  sp.addEventListener("click", (e) => { if (e.target.closest("#spGo")) bye(); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Enter" && !gone) bye(); }); } }
