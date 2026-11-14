@@ -2,6 +2,7 @@
 import * as pdfjsLib from "../vendor/pdfjs/pdf.min.mjs";
 import { CONFIG, TOOLS, STAMPS, COLORS, SPR, SPRIMG, RED, PENC, TEAMS, BOARDS, CLASSES, SUBJECTS, OTHER_SUBJECT, QTYPES, OTHER_TYPE, SUBJECTIVE, PARAM_MAX, EDGE } from "./config.js";
 import { uid, clamp, r4, isRect, fsOf, fsCq, mkQ, fresh, normalize, check, half, num, toShown, fromShown, countMarks, marksProblem, coverTotal, fileBase, fileSafe, testLabel, numbered as numberedOf, totals as totalsOf, core, isEdited } from "./model.js";
+import { isDsCallback, isDsManifest, fromDs } from "./ds.js";
 import { buildExport, applyImport, exportPdf, exportHtml, renderPages, downloadFile } from "./export.js";
 
 const $ = (s, r = document) => r.querySelector(s);
@@ -166,10 +167,10 @@ function pageGeom(i){
 }
 function geom1(i){
   const p=pages[i], el=$(`.pg[data-i="${i}"]`); if(!p||!el) return;
-  const g=pageGeom(i), rt=$(".rot",el);
+  const g=pageGeom(i), rt=$(".rot",el), ov=$(".ov",el);
   el.style.aspectRatio=g.dispW+" / "+g.dispH;
-  rt.style.width=g.W0+"px"; rt.style.height=g.H0+"px";
-  rt.style.left=((g.dispW-g.W0)/2)+"px"; rt.style.top=((g.dispH-g.H0)/2)+"px";
+  // Only the page itself (.rot) turns. The marks layer (.ov) stays upright, keeps the same size scale (opened width) and is positioned by geom().
+  [rt,ov].forEach(b=>{ b.style.width=g.W0+"px"; b.style.height=g.H0+"px"; b.style.left=((g.dispW-g.W0)/2)+"px"; b.style.top=((g.dispH-g.H0)/2)+"px"; });
   rt.style.transform=g.rot?`rotate(${g.rot}deg)`:"";
 }
 function geomAll(){ pages.forEach((_,i)=>geom1(i)); }
@@ -188,7 +189,7 @@ function buildPages(){
   io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting) paintPage(+e.target.dataset.i); }),{root:stage,rootMargin:"700px 0px"});
   pages.forEach((p,i)=>{
     const el=document.createElement("div"); el.className="pg"; el.dataset.i=i; el.style.aspectRatio=p.w+" / "+p.h;
-    el.innerHTML=`<span class="pn">${i+1}</span><span class="prot"><button type="button" data-pr="-90" title="Turn this page left">⟲ Left</button><button type="button" data-pr="90" title="Turn this page right">Right ⟳</button><button type="button" data-pr="180" title="Turn this page upside down">⇅ 180°</button></span><div class="rot"><canvas></canvas><div class="ov"></div></div><div class="pov"></div>`;
+    el.innerHTML=`<span class="pn">${i+1}</span><span class="prot"><button type="button" data-pr="-90" title="Turn this page left">⟲ Left</button><button type="button" data-pr="90" title="Turn this page right">Right ⟳</button><button type="button" data-pr="180" title="Turn this page upside down">⇅ 180°</button></span><div class="rot"><canvas></canvas></div><div class="ov"></div><div class="pov"></div>`;
     pagesEl.appendChild(el); io.observe(el); seenIO.observe(el);
   });
   layout(); updatePager();
@@ -219,13 +220,34 @@ function setZoom(z){ zoom=clamp(z,.5,2.6); layout(); renderOverlays(); }
 let rsT=null; window.addEventListener("resize",()=>{ clearTimeout(rsT); rsT=setTimeout(()=>{ if(!$("#qpPane").hidden) applyQpWidth(); if(pages.length) layout(); },200); });
 /* ---------------- annotation rendering ---------------- */
 function pc(v){ return (v*100)+"%"; }
+// Marks are stored on the page as opened. They are drawn upright on the page as shown: each point is mapped with toShown().
+// The .ov layer is the opened size (W0 x H0) centred on the shown page, so rx/ry convert shown fractions to its percentages.
+function ovMap(pg){ const p=pages[pg], odd=rotOf(pg)%180!==0; return p&&odd?{rx:p.h/p.w,ry:p.w/p.h}:{rx:1,ry:1}; }
+function shownRect(a){
+  const rot=rotOf(a.page), m=ovMap(a.page), p0=toShown(a.x,a.y,rot), p1=toShown(a.x+(a.w||0),a.y+(a.h||0),rot);
+  const x0=Math.min(p0[0],p1[0]), x1=Math.max(p0[0],p1[0]), y0=Math.min(p0[1],p1[1]), y1=Math.max(p0[1],p1[1]);
+  return {rot,m,x0,y0,x1,y1,l:pc(x0*m.rx-(m.rx-1)/2),t:pc(y0*m.ry-(m.ry-1)/2),w:pc((x1-x0)*m.rx),h:pc((y1-y0)*m.ry)};
+}
 function geom(el,a){
-  if(isRect(a)){ el.style.left=pc(a.x); el.style.top=pc(a.y); el.style.width=pc(a.w); el.style.height=pc(a.h); }
-  else if(a.type==="underline"||a.type==="strike"||a.type==="text"){ el.style.left=pc(a.x); el.style.top=pc(a.y); el.style.width=pc(a.w); }
-  else { el.style.left=pc(a.x); el.style.top=pc(a.y); }
+  const r=shownRect(a), m=r.m;
+  if(isRect(a)){ el.style.left=r.l; el.style.top=r.t; el.style.width=r.w; el.style.height=r.h; }
+  else if(a.type==="underline"||a.type==="strike"){
+    const vert=r.rot%180!==0; el.classList.toggle("vl",vert);
+    if(vert){ el.style.left=pc(r.x0*m.rx-(m.rx-1)/2); el.style.top=r.t; el.style.height=r.h; el.style.width=""; }
+    else { el.style.left=r.l; el.style.top=pc(r.y0*m.ry-(m.ry-1)/2); el.style.width=r.w; el.style.height=""; }
+  }
+  else if(a.type==="text"){
+    // The text box keeps its corner on the answer and stays upright; it grows away from that corner so it does not cover it.
+    el.style.left=r.l; el.style.top=r.t; el.style.width=pc(a.w||0);
+    const rot=r.rot, tx=(rot===90||rot===180)?"-100%":"0", ty=(rot===180||rot===270)?"-100%":"0";
+    const q=toShown(a.x,a.y,rot); el.style.left=pc(q[0]*m.rx-(m.rx-1)/2); el.style.top=pc(q[1]*m.ry-(m.ry-1)/2);
+    el.style.transform="translate("+tx+","+ty+") rotate("+(a.rot||0)+"deg)";
+  }
+  else { const q=toShown(a.x,a.y,r.rot); el.style.left=pc(q[0]*m.rx-(m.rx-1)/2); el.style.top=pc(q[1]*m.ry-(m.ry-1)/2); }
 }
 function penSvg(a){
-  const pts=(a.pts||[]).map(q=>(q[0]*100).toFixed(2)+","+(q[1]*100).toFixed(2)).join(" ");
+  const r=shownRect(a), rot=r.rot, dx=(r.x1-r.x0)||1e-6, dy=(r.y1-r.y0)||1e-6;
+  const pts=(a.pts||[]).map(q=>{ const s=toShown(a.x+q[0]*a.w,a.y+q[1]*a.h,rot); return (((s[0]-r.x0)/dx)*100).toFixed(2)+","+(((s[1]-r.y0)/dy)*100).toFixed(2); }).join(" ");
   const sw=Math.max(1.6,pageWidth()*.0042);
   return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible"><polyline points="${pts}" fill="none" stroke="${PENC[a.color]||RED}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
@@ -244,7 +266,7 @@ function annEl(a,num){
   else if(a.type==="stamp"){ if(SPR[a.stamp]){ el.classList.add("simg"); setSpr(el,a.stamp,a); } else el.textContent=a.stamp; }
   else if(a.type==="underline"){ el.classList.add("c-"+a.color); el.innerHTML=`<span class="ln"></span>`+(a.text?`<span class="cm">💬</span>`:""); el.title=a.text||""; }
   else if(a.type==="strike"){ el.innerHTML=`<span class="ln"></span>`; }
-  else if(a.type==="text"){ el.classList.add("c-"+a.color); el.textContent=a.value||""; el.style.fontSize=fsCq(a)+"cqw"; el.style.textAlign=a.al||"left"; el.style.transform="rotate("+(a.rot||0)+"deg)"; }
+  else if(a.type==="text"){ el.classList.add("c-"+a.color); el.textContent=a.value||""; el.style.fontSize=fsCq(a)+"cqw"; el.style.textAlign=a.al||"left"; }
   else if(a.type==="circle"){ el.classList.add("c-"+a.color); }
   else if(a.type==="pen"){ el.classList.add("c-"+a.color); el.innerHTML=penSvg(a); }
   if(S.aiLoaded && !a._new){
@@ -252,8 +274,14 @@ function annEl(a,num){
     else if(a.src!=="ai") el.insertAdjacentHTML("beforeend",`<span class="bdg" title="Added">new</span>`);
   }
   if(a.id===selId){
-    const hs=isRect(a)?["nw","ne","sw","se"]:(a.type==="underline"||a.type==="strike"||a.type==="text")?["w","e"]:isScalable(a)?["se"]:[];
-    hs.forEach(h=>el.insertAdjacentHTML("beforeend",`<span class="h ${h}" data-h="${h}"></span>`));
+    // Handles sit where the corner or end appears on the shown page. data-h keeps the name on the page as opened, which the resize maths uses.
+    const rot=rotOf(a.page), w=a.w||0, h=a.h||0, c=toShown(a.x+w/2,a.y+h/2,rot);
+    const at=(cx,cy)=>toShown(a.x+cx*w,a.y+cy*h,rot);
+    const hs=[];
+    if(isRect(a)) [["nw",0,0],["ne",1,0],["sw",0,1],["se",1,1]].forEach(k=>{ const q=at(k[1],k[2]); hs.push([k[0],(q[1]<c[1]?"n":"s")+(q[0]<c[0]?"w":"e")]); });
+    else if(a.type==="underline"||a.type==="strike"||a.type==="text") [["w",0],["e",1]].forEach(k=>{ const q=at(k[1],0), ddx=q[0]-c[0], ddy=q[1]-c[1]; hs.push([k[0],Math.abs(ddx)>=Math.abs(ddy)?(ddx<0?"w":"e"):(ddy<0?"n":"s")]); });
+    else if(isScalable(a)) hs.push(["se","se"]);
+    hs.forEach(k=>el.insertAdjacentHTML("beforeend",`<span class="h ${k[1]}" data-h="${k[0]}"></span>`));
   }
   return el;
 }
@@ -264,12 +292,24 @@ function renderOverlays(only){
     const ov=$(".ov",pg), pov=$(".pov",pg); ov.innerHTML=""; pov.innerHTML=""; if(!fbOn) return;
     S.anns.filter(a=>a.page===i).forEach(a=>ov.appendChild(annEl(a,nums[a.id])));
     const s=S.anns.find(a=>a.id===selId&&a.page===i&&!a._draft);
-    if(s&&(tool==="select"||s._new)) pov.appendChild(popEl(s,nums[s.id]));
+    if(s&&(tool==="select"||s._new)){ const pe=popEl(s,nums[s.id]); pov.appendChild(pe); fitPop(pe); }
   });
   if(focusPop){ focusPop=false; const f=$(".pop textarea, .pop input[type=text]"); if(f){ f.focus(); if(f.tagName==="INPUT") f.select(); } }
 }
 
 /* ---------------- popover ---------------- */
+// The toolbar always stays upright (it lives outside the turned page). Keep it inside the visible workspace:
+// flip it above the mark when there is no room below, then nudge it in from any edge.
+function fitPop(d){
+  const st=stage.getBoundingClientRect(), mb=70, m=8; let r=d.getBoundingClientRect();
+  if(r.bottom>st.bottom-mb&&d.style.top&&d.dataset.dy0!=null){ d.style.top=""; d.style.bottom="calc("+pc(1-(+d.dataset.dy0))+" + 22px)"; r=d.getBoundingClientRect(); }
+  let dx=0,dy=0;
+  if(r.bottom>st.bottom-mb) dy=st.bottom-mb-r.bottom;
+  if(r.top+dy<st.top+m) dy=st.top+m-r.top;
+  if(r.right>st.right-m) dx=st.right-m-r.right;
+  if(r.left+dx<st.left+m) dx=st.left+m-r.left;
+  if(dx||dy) d.style.translate=dx+"px "+dy+"px";
+}
 function popEl(a,num){
   const d=document.createElement("div"); d.className="pop";
   // Place the popover from where the mark appears on screen (the page may be turned).
@@ -279,7 +319,7 @@ function popEl(a,num){
   const anchorX=right?dx1:dx0;
   if(right) d.classList.add("r");
   d.style.left=pc(clamp(anchorX,0,1));
-  const bottom=dy1;
+  const bottom=dy1; d.dataset.dy0=dy0;
   if(above||(a.type==="text"&&dy0>.2)){ d.style.bottom="calc("+pc(1-dy0)+" + 22px)"; } else { d.style.top="calc("+pc(bottom)+" + "+(isRect(a)?10:22)+"px)"; }
   let h=""; const SC='<div class="trow"><span class="lbl">Size</span><button class="sm" data-sc="-1">−</button><button class="sm" data-sc="1">+</button></div>';
   const dots=cs=>`<div class="dots">`+cs.map(c=>`<button class="dot i-${c} ${a.color===c?"on":""}" data-c="${c}" ${a.type==="box"?"":`style="background:${PENC[c]}"`} title="${COLORS[c].label}"></button>`).join("")+`</div><span class="cl">${a.color&&(a.type==="box"||a.type==="underline")?COLORS[a.color].label:""}</span>`;
@@ -314,7 +354,7 @@ function popEl(a,num){
   const setFs=v=>{ v=clamp(Math.round(v)||12,6,60); a.fs=v; const te=$(`.an[data-id="${a.id}"]`); if(te) te.style.fontSize=fsCq(a)+"cqw"; const fi=$("[data-fsin]",d); if(fi) fi.value=v; touch(a); };
   $$("[data-fs]",d).forEach(b=>b.onclick=()=>setFs(fsOf(a)+(+b.dataset.fs)));
   const fin=$("[data-fsin]",d); if(fin) fin.onchange=()=>setFs(parseFloat(fin.value));
-  const setRot=v=>{ v=clamp(Math.round(v)||0,-180,180); a.rot=v; const te=$(`.an[data-id="${a.id}"]`); if(te) te.style.transform="rotate("+v+"deg)"; const ri=$("[data-rotin]",d); if(ri) ri.value=v; touch(a); };
+  const setRot=v=>{ v=clamp(Math.round(v)||0,-180,180); a.rot=v; const te=$(`.an[data-id="${a.id}"]`); if(te) geom(te,a); const ri=$("[data-rotin]",d); if(ri) ri.value=v; touch(a); };
   $$("[data-rot]",d).forEach(b=>b.onclick=()=>setRot((a.rot||0)+(+b.dataset.rot)));
   const rin=$("[data-rotin]",d); if(rin) rin.onchange=()=>setRot(parseFloat(rin.value));
   const r0=$("[data-rot0]",d); if(r0) r0.onclick=()=>setRot(0);
@@ -381,6 +421,7 @@ pagesEl.addEventListener("pointerdown",e=>{
   const pgEl=e.target.closest(".pg"); if(!pgEl) return;
   const i=+pgEl.dataset.i, anEl=e.target.closest(".an"), hEl=e.target.closest(".h");
   if(!fbOn){ toast("Annotations are hidden."); return; }
+  if(penSeen&&e.pointerType==="touch"&&!anEl&&tool!=="select"&&tool!=="eraser"){ if(Date.now()-penToast>5000){ penToast=Date.now(); toast("Your finger scrolls. Mark with the Pencil."); } return; }
   if(hEl&&anEl){ e.preventDefault(); const a=find(anEl.dataset.id);
     if(isScalable(a)){ const r=pgEl.getBoundingClientRect(), p=pt(e,r,rotOf(i)), g=pageGeom(i);
       drag={mode:"scale",id:a.id,rot:rotOf(i),r:r,g:g,o:{sc:a.sc||1,d0:Math.hypot((p.x-a.x)*g.W0,(p.y-a.y)*g.H0)||1},moved:false}; return; }
@@ -421,7 +462,7 @@ function startDraw(e,i,pgEl){
   }
 }
 window.addEventListener("pointermove",e=>{
-  if(!drag) return; const a=find(drag.id); if(!a) return; const p=pt(e,drag.r,drag.rot); drag.moved=true;
+  if(!drag||(drag.pid!=null&&e.pointerId!==drag.pid)) return; const a=find(drag.id); if(!a) return; const p=pt(e,drag.r,drag.rot); drag.moved=true;
   if(drag.mode==="scale"){
     const d=Math.hypot((p.x-a.x)*drag.g.W0,(p.y-a.y)*drag.g.H0); a.sc=clamp(Math.round(drag.o.sc*d/drag.o.d0*100)/100,.5,3);
     const te=$(`.an[data-id="${a.id}"]`), key=a.type==="stamp"?a.stamp:a.type;
@@ -456,8 +497,8 @@ window.addEventListener("pointermove",e=>{
   if(el){ geom(el,a); if(drag.mode==="draw"&&a.type==="pen") el.innerHTML=penSvg(a); const pg=el.closest(".pg"), pop=pg&&pg.querySelector(".pov .pop"); if(pop) pop.style.display="none"; }
   else if(drag.mode==="draw") renderOverlays(drag.page);
 });
-window.addEventListener("pointerup",()=>{
-  if(!drag) return; const d=drag; drag=null; const a=find(d.id); if(!a) return;
+window.addEventListener("pointerup",e=>{
+  if(!drag||(drag.pid!=null&&e.pointerId!==drag.pid)) return; const d=drag; drag=null; const a=find(d.id); if(!a) return;
   if(d.mode==="draw"){
     delete a._draft;
     const tooSmall=a.type==="pen"?(a.raw.length<3||(a.w<.006&&a.h<.006)):(a.type==="box"||a.type==="circle")?(a.w<.012||a.h<.01):(a.w<.02);
@@ -472,6 +513,58 @@ window.addEventListener("pointerup",()=>{
     renderOverlays(a.page); renderSide();
   }
 });
+/* ---- touch, pencil and pinch ---- */
+// A pencil marks. Once one has been used, a finger only scrolls, zooms and edits what is already there.
+let penSeen=false, penToast=0;
+function abortDrag(){
+  if(!drag) return; const d=drag; drag=null; const a=find(d.id);
+  if(a&&d.mode==="draw"){ S.anns=S.anns.filter(x=>x.id!==a.id); renderOverlays(d.page); }
+  else if(a){ renderOverlays(a.page); }
+}
+// runs before the main pointerdown handler
+pagesEl.addEventListener("pointerdown",e=>{
+  if(e.pointerType==="pen"&&!penSeen){ penSeen=true; pagesEl.dataset.input="pen"; toast("Pencil found. Draw with the Pencil, scroll and zoom with your finger."); }
+  if(drag&&e.pointerId!==drag.pid&&e.pointerType==="touch"&&drag.ptype==="touch") abortDrag();   // a second finger is a pinch, not a mark
+},true);
+// runs after it: remember which pointer started the drag
+pagesEl.addEventListener("pointerdown",e=>{ if(drag&&drag.pid==null){ drag.pid=e.pointerId; drag.ptype=e.pointerType; } });
+window.addEventListener("pointercancel",e=>{ if(drag&&(drag.pid==null||e.pointerId===drag.pid)) abortDrag(); });
+// Pencil: stop the page moving under the tip while drawing, resizing or moving a mark
+pagesEl.addEventListener("touchstart",e=>{
+  const t=e.touches[0]; if(!t||t.touchType!=="stylus") return;
+  if(e.target.closest&&(e.target.closest(".pop")||e.target.closest(".prot"))) return;
+  if((tool!=="select"&&tool!=="eraser")||(e.target.closest&&e.target.closest(".an"))) e.preventDefault();
+},{passive:false});
+// Pinch to zoom. The pages are scaled with a transform while the fingers move and drawn again at the new size when they lift.
+let pz=null;
+const tdist=t=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+stage.addEventListener("touchstart",e=>{
+  if(e.touches.length!==2||!pages.length) return;
+  e.preventDefault(); abortDrag();
+  const pr=pagesEl.getBoundingClientRect(), cx=(e.touches[0].clientX+e.touches[1].clientX)/2, cy=(e.touches[0].clientY+e.touches[1].clientY)/2;
+  pz={d0:tdist(e.touches)||1,z0:zoom,k:1,cx:cx,cy:cy,fx:(cx-pr.left)/pr.width,fy:(cy-pr.top)/pr.height};
+  pagesEl.style.transformOrigin=(cx-pr.left)+"px "+(cy-pr.top)+"px";
+},{passive:false});
+stage.addEventListener("touchmove",e=>{
+  if(!pz||e.touches.length<2) return; e.preventDefault();
+  pz.k=clamp(tdist(e.touches)/pz.d0,.5/pz.z0,2.6/pz.z0);
+  pagesEl.style.transform="scale("+pz.k+")";
+},{passive:false});
+function endPinch(){
+  if(!pz) return; const q=pz; pz=null;
+  pagesEl.style.transform=""; pagesEl.style.transformOrigin="";
+  setZoom(q.z0*q.k);
+  const pr=pagesEl.getBoundingClientRect();
+  stage.scrollLeft+=pr.left+q.fx*pr.width-q.cx; stage.scrollTop+=pr.top+q.fy*pr.height-q.cy;
+}
+stage.addEventListener("touchend",e=>{ if(pz&&e.touches.length<2) endPinch(); });
+stage.addEventListener("touchcancel",()=>{ if(pz) endPinch(); });
+document.addEventListener("gesturestart",e=>e.preventDefault());   // old Safari: no whole-page zoom
+// trackpad pinch and Ctrl + wheel zoom the copy, not the whole tool
+stage.addEventListener("wheel",e=>{ if(!(e.ctrlKey||e.metaKey)) return; e.preventDefault(); setZoom(zoom*(e.deltaY<0?1.06:1/1.06)); },{passive:false});
+// the lower panel can be folded away on a portrait tablet
+$("#sideTgl").onclick=()=>{ const sd=$(".side"), m=sd.classList.toggle("min"); $("#sideTgl").setAttribute("aria-expanded",String(!m)); };
+$$(".tabs button[data-tab]").forEach(b=>b.addEventListener("click",()=>{ const sd=$(".side"); if(sd.classList.contains("min")){ sd.classList.remove("min"); $("#sideTgl").setAttribute("aria-expanded","true"); } }));
 document.addEventListener("keydown",e=>{
   const tg=e.target, typing=tg&&(tg.tagName==="INPUT"||tg.tagName==="TEXTAREA"||tg.tagName==="SELECT");
   const mod=e.ctrlKey||e.metaKey;
@@ -488,7 +581,7 @@ document.addEventListener("keydown",e=>{
 });
 
 /* ---------------- side panel ---------------- */
-function renderSide(){ if(tab==="marks") renderMarks(); else renderFb(); updateTotals(); updateFbBadge(); $$(".tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab)); }
+function renderSide(){ if(tab==="marks") renderMarks(); else renderFb(); updateTotals(); updateFbBadge(); $$(".tabs button[data-tab]").forEach(b=>b.classList.toggle("on",b.dataset.tab===tab)); }
 function updateFbBadge(){
   const n=S.anns.filter(a=>(a.type==="box"&&a.text.trim())||(a.type==="underline"&&a.text.trim())).length;
   $("#fbCount").textContent=n?"("+n+")":"";
@@ -575,7 +668,7 @@ $("#sideBody").addEventListener("change",e=>{
   if(t.matches("[data-pf]")||t.matches("[data-qnote]")||t.matches("[data-edgenote]")){ commit(); return; }
   if(t.id==="overall"||t.matches("textarea[data-ann]")){ commit(); renderOverlays(); if(t.matches("textarea[data-ann]")) renderOpts(); }
 });
-$$(".tabs button").forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderSide(); });
+$$(".tabs button[data-tab]").forEach(b=>b.onclick=()=>{ tab=b.dataset.tab; renderSide(); });
 
 
 
@@ -839,13 +932,13 @@ const data = () => buildExport({ S, pages, fileName, qpName: qp.has ? qp.name : 
 function saveJson() { downloadFile(fileBase(S, baseName()) + ".redpen.json", JSON.stringify(data(), null, 2), "application/json"); dirty = false; }
 async function savePdf() {
   busy(true, "Building PDF…");
-  try { downloadFile(fileBase(S, baseName()) + ".annotated.pdf", await exportPdf({ S, pages }), "application/pdf"); dirty = false; }
+  try { downloadFile(fileBase(S, baseName()) + ".annotated.pdf", await exportPdf({ S, pages, fileName, qpName: qp.has ? qp.name : "" }), "application/pdf"); dirty = false; }
   catch (e) { console.error(e); toast("Could not build the PDF."); }
   busy(false);
 }
 async function saveHtml() {
   busy(true, "Building HTML…");
-  try { downloadFile(fileBase(S, baseName()) + ".evaluated.html", await exportHtml({ S, pages, fileName }), "text/html"); dirty = false; }
+  try { downloadFile(fileBase(S, baseName()) + ".evaluated.html", await exportHtml({ S, pages, fileName, qpName: qp.has ? qp.name : "" }), "text/html"); dirty = false; }
   catch (e) { console.error(e); toast("Could not build the HTML."); }
   busy(false);
 }
@@ -1070,9 +1163,19 @@ async function makeDemo() {
   } catch (e) { toast("Could not prepare the demo."); }
   busy(false);
 }
-function openJson(txt) {
-  let j; try { j = JSON.parse(txt); } catch (e) { toast("Not a valid JSON file."); return; }
-  const r = applyImport(S, j, jsonMode === "draft", pages.length);
+// Accepts one Redpen JSON, or the two DS files (callback and manifest, in any order).
+function openJson(txts) {
+  txts = Array.isArray(txts) ? txts : [txts];
+  const objs = [];
+  for (const t of txts) { try { objs.push(JSON.parse(t)); } catch (e) { toast("Not a valid JSON file."); return; } }
+  const cb = objs.find(isDsCallback), mf = objs.find(isDsManifest);
+  let j, asDraft = jsonMode === "draft", ds = null;
+  if (cb || mf) {
+    ds = fromDs(cb || null, mf || null); j = ds.json; asDraft = true;
+    if (mf && mf.pageCount && pages.length && mf.pageCount !== pages.length) toast("The manifest has " + mf.pageCount + " pages; this copy has " + pages.length + ".");
+  } else j = objs[0];
+  const r = applyImport(S, j, asDraft, pages.length);
+  if (ds && !r.error) { S.ds = ds.ds; S.dsWarnings = ds.warnings; if (ds.warnings.length) toast("Opened the DS draft. " + ds.warnings.length + " note" + (ds.warnings.length > 1 ? "s" : "") + " saved in the JSON."); }
   if (r.error) { toast(r.error); return; }
   if (r.pageMismatch) toast("File has " + r.pageMismatch + " pages; this copy has " + pages.length + ".");
   normalize(S);
@@ -1105,7 +1208,7 @@ $("#wizard").addEventListener("click", (e) => {
   else if (t.dataset.drop === "qp") $("#fileQp").click();
   else if (t.dataset.drop === "copy") $("#file").click();
 });
-$("#fileJson").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) f.text().then(openJson); };
+$("#fileJson").onchange = (e) => { const fs = Array.from(e.target.files || []); e.target.value = ""; if (fs.length) Promise.all(fs.map((f) => f.text())).then(openJson); };
 $("#btnSetup").onclick = openSetup;
 $("#btnQp").onclick = () => {
   if (!pages.length) { toast("Open a copy first."); return; }

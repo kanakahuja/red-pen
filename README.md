@@ -68,17 +68,33 @@ If a marks value is not possible (for example 3 on a 1-mark question), a red mes
 
 ### Turning pages and resizing
 
-Each page has **Left / Right / 180°** buttons for inverted or sideways copies. Marks stay on the same part of the answer and turn with the page. The turn is saved in the JSON, PDF and HTML. Select a tick, cross, stamp or circled score and drag its corner handle to make it bigger or smaller. Text size is set in its popover.
+Each page has **Left / Right / 180°** buttons for inverted or sideways copies. Only the page turns. Marks stay on the same part of the answer, move to where that part now appears, and stay upright and readable (ticks, scores, text and badges are never turned; boxes, circles, pens and underlines follow the page's direction). Stored positions are always on the page as opened, so turning again and again never shifts anything. The same holds in the PDF and the HTML copy. The turn is saved in the JSON, PDF and HTML. Select a tick, cross, stamp or circled score and drag its corner handle to make it bigger or smaller. Text size is set in its popover.
 
 ### Question paper
 
 The **Question paper** opens beside the copy as soon as the SME starts. Upload a PDF or image in Copy details, or paste a link. Drag the edge between the paper and the copy (or use the left and right arrow keys on it) to change how much of each shows; the width is remembered. Use the **− 100% +** buttons in its header to zoom (click the percentage to reset, or pinch / Ctrl + scroll over it); the same panel is used in every step. Links that the browser cannot read (for example Drive pages) open in a new tab with **Open link**. The Question paper button in the header opens or closes it, or asks for a file if there is none yet.
 
+## iPad and tablets
+
+- Touch screens get bigger buttons, handles and colour dots (44px targets, 22px handles with a larger touch area). Desktop is unchanged.
+- Portrait tablets stack the tools, the copy and the marks panel. The marks panel folds away with the arrow at the end of its tab row.
+- Pinch with two fingers to zoom the copy. The marks stay on the same part of the answer at every zoom and turn.
+- Until a Pencil (or pen) is used, a finger can draw. After that a finger only scrolls, zooms and edits marks that are already there; the Pencil marks. A second finger while drawing is a pinch, not a mark.
+
+## The HTML copy, the PDF and the JSON
+
+All three come from one canonical result (see `docs/10-RESULT-DATA-SCHEMA.md`).
+
+- **HTML (`.evaluated.html`)** is the student Result Experience: cover (name, circled marks, remark, question table), for UPSC the parameter-wise marks and overall feedback pages, then the evaluated copy. Each numbered box is tied to its feedback by id (same number and colour). Feedback opens one card at a time: the first highlight from the top opens first and the next opens as the student scrolls; a tap on a badge opens or closes that card. **Hide Feedback / Show Feedback** hides boxes, cards and the handwritten marks. Thumbs up/down (down opens reasons and a comment), **Report** on a highlight and on the whole evaluation, a star rating, and **Your answers / Model answers** tabs. Reactions stay on the device and can be saved with **Save my responses**. Ticks, crosses, underlines, circled scores, strikes and stamps are drawn on the page and do not open a card. Turned pages keep their marks upright and in place. Printing shows every card.
+- **PDF (`.annotated.pdf`)** is the cover (and for UPSC the parameter-wise and overall pages), the copy with its marks, then a consolidated feedback section: every highlight number and colour with its question, page and text. Foundation has no parameter or overall pages.
+- **JSON (`.redpen.json`)** keeps the earlier fields and adds the canonical result, warnings and data gaps. The DS callback and manifest, when used, are stored unchanged in `ds_source`.
+- **Open AI draft** accepts one Redpen JSON, or the two DS files together (callback and manifest, pick both).
+
 ## Saved file names
 
 Downloads are named **`testcode_studentname`** for both teams, using the UPSC test code or the Foundation paper name: for example `SD2630_Siddharth-Jain.redpen.json`, `.annotated.pdf` and `.evaluated.html`. Spaces become hyphens and characters that are not allowed in file names are dropped.
 
-## JSON format (`redpen/v1`, schema_version 1.1)
+## JSON format (`redpen/v1`, schema_version 1.2, see docs/10-RESULT-DATA-SCHEMA.md)
 
 ```
 { schema, schema_version, evaluation_id, file, started_at, exported_at, minutes_spent,
@@ -118,6 +134,9 @@ public/
   js/config.js    settings, tools, stamps, colours
   js/model.js     pure data helpers and the checks before a download
   js/export.js    JSON, import, annotated PDF, HTML
+  js/result.js    the canonical result all exports use
+  js/ds.js        reads the DS callback and manifest
+  js/resulthtml.js, js/pdfpages.js   the HTML and PDF pages
   js/app.js       UI and interaction
   vendor/         pdf.js 5.x (legacy build), pdf-lib. Self-hosted.
   assets/         sprites (tick, cross, stamps), favicon

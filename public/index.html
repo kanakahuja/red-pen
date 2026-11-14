@@ -78,14 +78,14 @@
       </div>
     </main>
     <aside class="side">
-      <div class="tabs"><button data-tab="marks" class="on">Marks</button><button data-tab="fb">Feedback <span id="fbCount"></span></button></div>
+      <div class="tabs"><button data-tab="marks" class="on">Marks</button><button data-tab="fb">Feedback <span id="fbCount"></span></button><button type="button" id="sideTgl" class="sideTgl" aria-label="Show or hide this panel" aria-expanded="true">&#x2304;</button></div>
       <div class="sideBody" id="sideBody"></div>
       <div class="totalBar" id="totalBar"></div>
     </aside>
   </div>
 </div>
 <input type="file" id="file" accept="application/pdf,image/*" multiple hidden>
-<input type="file" id="fileJson" accept="application/json,.json" hidden>
+<input type="file" id="fileJson" accept="application/json,.json" multiple hidden>
 <input type="file" id="fileQp" accept="application/pdf,image/*" hidden>
 <div class="mw" id="mw" hidden><div class="modal" id="modal"></div></div>
 <div id="toast" role="status" hidden></div>

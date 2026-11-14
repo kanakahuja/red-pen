@@ -1,6 +1,9 @@
 // JSON export/import, annotated PDF and HTML export.
 import { PDFDocument } from "../vendor/pdf-lib.esm.min.js";
 import { COLORS, RED, PENC, SPR, SPRIMG, TEAMS, PARAM_MAX, EDGE } from "./config.js";
+import { buildResult } from "./result.js";
+import { frontPages, feedbackPages } from "./pdfpages.js";
+import { buildHtml } from "./resulthtml.js";
 import { uid, r4, isRect, fsOf, fsCq, mkQ, mkParams, numbered, totals, core, isEdited, rotOf, toShown, edgeSummary, countMarks, coverTotal, fileBase, testLabel } from "./model.js";
 
 export const SCHEMA = "redpen/v1";
@@ -36,6 +39,8 @@ export function buildExport({ S, pages, fileName, qpName }) {
       if (a.type === "score") o.score = a.value;
       if (a.type === "stamp") o.stamp = a.stamp;
       if (a.sc && a.sc !== 1) o.scale = a.sc;
+      if (a.param) o.parameter = a.param;
+      if (a.ds) o.ds_ref = a.ds;
       o.source = a.src === "ai" ? (isEdited(a) ? "ai_edited" : "ai") : "reviewer";
       // Where the mark is. Fractions of the page as opened (origin top-left), the same in the page's own units,
       // and, when the SME turned the page, where it appears on the turned page.
@@ -59,16 +64,20 @@ export function buildExport({ S, pages, fileName, qpName }) {
       if (a.t) o.created_at = new Date(a.t).toISOString();
       return o;
     });
+  const now = new Date();
   const m = S.meta;
   const meta = { copyId: m.copyId, test: m.test, student_name: m.student || "", reviewer: m.reviewer, subject: m.subject };
   if (S.cohort === "upsc") meta.test_code = m.test;
   meta.file_base = fileBase(S, "");
   if (S.cohort === "foundation") { meta.board = m.board; meta.class = m.klass; }
   if (m.paperLink) meta.question_paper_link = m.paperLink;
-  const now = new Date(), started = S.startedAt ? new Date(S.startedAt) : null;
+  if (m.contact) meta.contact = m.contact;
+  if (m.testDate) meta.test_date = m.testDate;
+  const started = S.startedAt ? new Date(S.startedAt) : null;
+  const R = buildResult({ S, pages, fileName, qpName, now });
   return {
     schema: SCHEMA,
-    schema_version: "1.1",
+    schema_version: "1.2",
     evaluation_id: S.evalId || "",
     file: fileName,
     started_at: S.startedAt || "",
@@ -80,7 +89,7 @@ export function buildExport({ S, pages, fileName, qpName }) {
     question_paper: { name: qpName || "", link: m.paperLink || "" },
     position_units: "position = fractions (0 to 1) of the page as opened, origin top-left; position_px = the same in that page's own units (PDF points, or image pixels); position_as_shown = after the page was turned (see page_rotation)",
     test_total_marks: S.testTotal,
-    pages: pages.map((p, i) => ({ width: Math.round(p.w), height: Math.round(p.h), rotation: rotOf(S, i) })),
+    pages: pages.map((p, i) => { const g = S.ds && S.ds.manifest && (S.ds.manifest.pageGeometry || []).find((x) => x.page === i + 1); return { width: Math.round(p.w), height: Math.round(p.h), rotation: rotOf(S, i), ...(g ? { source_rotation: g.rotation || 0 } : {}) }; }),
     questions: S.questions.map((q) => {
       const o = { id: q.id, max_marks: q.max, question_type: upsc ? "Subjective" : (q.type || ""), marks_obtained: q.attempted ? q.marks : 0, attempted: q.attempted, objective: upsc ? false : q.objective };
       o.annotation_counts = countMarks(S, q.id);
@@ -106,6 +115,16 @@ export function buildExport({ S, pages, fileName, qpName }) {
     final_check: S.review || null,
     annotation_counts: countMarks(S),
     annotations,
+    // Canonical, cohort-aware result. The HTML and PDF are built from the same data. Original DS files are kept as they came.
+    student: R.student, test: R.test, cohort_details: R.cohort_details,
+    result: { marks_obtained: R.cover.marks_obtained, total_marks: R.cover.total_marks, percent: R.cover.percent, remark: R.cover.remark },
+    parameters_config: R.parameters, overall: R.overall,
+    feedback_index: R.feedback.map((f) => ({ id: f.id, order: f.order, number: f.number, label: f.label, question: f.question, page: f.page, color: f.color, polarity: f.polarity, parameter: f.parameter })),
+    handwritten_index: R.handwritten.map((h) => ({ id: h.id, order: h.order, type: h.type, question: h.question, page: h.page })),
+    evaluation: R.evaluation, model_answers: R.model_answers,
+    feedback_interactions: R.feedback_interactions, overall_rating: R.overall_rating,
+    data_gaps: R.data_gaps, warnings: R.warnings,
+    ds_source: S.ds || null,
   };
 }
 
@@ -147,6 +166,8 @@ export function applyImport(S, json, asDraft, pageCount) {
   }
   if (json.overall_summary) S.overall = json.overall_summary;
   if (json.evaluation_id) S.evalId = json.evaluation_id;
+  if (json.ds_source) S.ds = json.ds_source;
+  if (json.meta) { if (json.meta.contact) S.meta.contact = json.meta.contact; if (json.meta.test_date) S.meta.testDate = json.meta.test_date; }
   if (json.started_at) S.startedAt = json.started_at;
   S.anns = json.annotations.map((o) => {
     const a = { id: uid(), type: o.type, page: Math.max(0, (o.page || 1) - 1), q: o.scope === "test_total" ? 0 : (o.question || 1), x: o.x || 0, y: o.y || 0, src: asDraft ? "ai" : "reviewer" };
@@ -156,6 +177,8 @@ export function applyImport(S, json, asDraft, pageCount) {
     if (o.type === "pen") a.pts = o.points || [];
     if (o.type === "box" || o.type === "underline") { a.text = o.feedback || ""; if (!a.color) a.color = "red"; }
     if (o.type === "score") a.value = String(o.score == null ? "" : o.score);
+    if (o.parameter) a.param = o.parameter;
+    if (o.ds_ref) a.ds = o.ds_ref;
     if (o.scope === "test_total") a.total = true;
     if (o.type === "stamp") a.stamp = o.stamp || "Good";
     if (o.scale) a.sc = o.scale;
@@ -184,17 +207,22 @@ function wrapLines(ctx, text, maxW) {
   return lines;
 }
 
-function drawAnns(ctx, W, H, pi, S, nums) {
-  const u = W / 100;
+// Draws the marks on a page canvas that is already turned (W x H as shown). Marks are stored on the page as opened,
+// so each point goes through toShown(). The marks themselves stay upright. Sizes follow the opened width, as on screen.
+function drawAnns(ctx, W, H, pi, S, nums, skipBoxes, rot) {
+  rot = rot || 0;
+  const Wo = rot % 180 !== 0 ? H : W, u = Wo / 100;
+  const P = (fx, fy) => { const s = toShown(fx, fy, rot); return [s[0] * W, s[1] * H]; };
   ctx.textBaseline = "middle"; ctx.textAlign = "center";
   S.anns.filter((a) => a.page === pi && !a._draft).forEach((a) => {
-    const x = a.x * W, y = a.y * H, col = COLORS[a.color] || COLORS.red;
+    const [x, y] = P(a.x, a.y), col = COLORS[a.color] || COLORS.red;
+    if (a.type === "box" && skipBoxes) return;
     if (a.type === "box") {
-      const c = col.hex;
+      const c = col.hex, q = P(a.x + a.w, a.y + a.h), bx = Math.min(x, q[0]), by = Math.min(y, q[1]), bw = Math.abs(q[0] - x), bh = Math.abs(q[1] - y);
       ctx.fillStyle = hexA(c, 0.12); ctx.strokeStyle = c; ctx.lineWidth = u * 0.28;
-      ctx.fillRect(x, y, a.w * W, a.h * H); ctx.strokeRect(x, y, a.w * W, a.h * H);
-      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, u * 1.6, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = "#fff"; ctx.font = `700 ${u * 1.9}px 'Reddit Sans',sans-serif`; ctx.fillText(String(nums[a.id] || ""), x, y + u * 0.05);
+      ctx.fillRect(bx, by, bw, bh); ctx.strokeRect(bx, by, bw, bh);
+      ctx.fillStyle = c; ctx.beginPath(); ctx.arc(bx, by, u * 1.6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.font = `700 ${u * 1.9}px 'Reddit Sans',sans-serif`; ctx.fillText(String(nums[a.id] || ""), bx, by + u * 0.05);
     } else if (a.type === "tick" || a.type === "cross") { drawSpr(ctx, a.type, a, x, y, u); }
     else if (a.type === "score") {
       const k = a.sc || 1;
@@ -209,32 +237,35 @@ function drawAnns(ctx, W, H, pi, S, nums) {
       const tw = ctx.measureText(a.stamp).width;
       ctx.strokeStyle = RED; ctx.lineWidth = u * 0.25; ctx.beginPath(); ctx.moveTo(x - tw / 2, y + u * 2.1); ctx.lineTo(x + tw / 2, y + u * 2.1); ctx.stroke();
     } else if (a.type === "text") {
-      const fpx = u * fsCq(a), maxW = (a.w || 0.4) * W, al = a.al || "left";
-      ctx.save(); ctx.translate(x, y); ctx.rotate(((a.rot || 0) * Math.PI) / 180);
+      const fpx = u * fsCq(a), maxW = (a.w || 0.4) * Wo, al = a.al || "left";
       ctx.textBaseline = "top"; ctx.textAlign = al; ctx.fillStyle = PENC[a.color] || RED; ctx.font = `400 ${fpx}px Kalam,cursive`;
-      const tx = al === "left" ? 0 : al === "center" ? maxW / 2 : maxW; let ty = 0;
-      String(a.value || "").split("\n").forEach((par) => {
-        const ls = par.trim() ? wrapLines(ctx, par, maxW) : [""];
-        ls.forEach((l) => { ctx.fillText(l, tx, ty); ty += fpx; });
-      });
+      const lines = [];
+      String(a.value || "").split("\n").forEach((par) => { (par.trim() ? wrapLines(ctx, par, maxW) : [""]).forEach((l) => lines.push(l)); });
+      // The box grows away from its corner on the answer, like on screen.
+      const ox = rot === 90 || rot === 180 ? -maxW : 0, oy = rot === 180 || rot === 270 ? -lines.length * fpx : 0;
+      ctx.save(); ctx.translate(x + ox, y + oy); ctx.rotate(((a.rot || 0) * Math.PI) / 180);
+      const tx = al === "left" ? 0 : al === "center" ? maxW / 2 : maxW;
+      lines.forEach((l, k) => ctx.fillText(l, tx, k * fpx));
       ctx.restore(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
     } else if (a.type === "circle") {
+      const q = P(a.x + a.w, a.y + a.h);
       ctx.strokeStyle = PENC[a.color] || RED; ctx.lineWidth = u * 0.4; ctx.beginPath();
-      ctx.ellipse(x + (a.w * W) / 2, y + (a.h * H) / 2, (a.w * W) / 2, (a.h * H) / 2, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.ellipse((x + q[0]) / 2, (y + q[1]) / 2, Math.abs(q[0] - x) / 2, Math.abs(q[1] - y) / 2, 0, 0, Math.PI * 2); ctx.stroke();
     } else if (a.type === "pen") {
       ctx.strokeStyle = PENC[a.color] || RED; ctx.lineWidth = u * 0.45; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
-      (a.pts || []).forEach((q, k) => { const px = (a.x + q[0] * a.w) * W, py = (a.y + q[1] * a.h) * H; if (k === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); });
+      (a.pts || []).forEach((q, k) => { const s = P(a.x + q[0] * a.w, a.y + q[1] * a.h); if (k === 0) ctx.moveTo(s[0], s[1]); else ctx.lineTo(s[0], s[1]); });
       ctx.stroke();
     } else if (a.type === "underline" || a.type === "strike") {
+      const q = P(a.x + a.w, a.y);
       ctx.strokeStyle = a.type === "strike" ? RED : (PENC[a.color] || RED); ctx.lineWidth = u * (a.type === "strike" ? 0.4 : 0.36); ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + a.w * W, y); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(q[0], q[1]); ctx.stroke();
     }
   });
 }
 
 // Draws every page with its marks burned in, turned to the way the SME set it.
 // Returns [{ canvas, w, h }] in the orientation shown on screen.
-export async function renderPages({ S, pages, W, onPage, only }) {
+export async function renderPages({ S, pages, W, onPage, only, skipBoxes, split }) {
   await Promise.all([document.fonts.load("400 24px Kalam"), document.fonts.load("700 24px Kalam"), document.fonts.load("700 24px 'Reddit Sans'")]);
   await Promise.all(Object.values(SPRIMG).map((im) => (im.decode ? im.decode().catch(() => {}) : null)));
   const nums = numbered(S), out = [];
@@ -246,7 +277,6 @@ export async function renderPages({ S, pages, W, onPage, only }) {
     ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, W, H);
     if (p.kind === "img") ctx.drawImage(p.img, 0, 0, W, H);
     else { const vp = p.page.getViewport({ scale: W / p.w }); await p.page.render({ canvasContext: ctx, canvas: c, viewport: vp }).promise; }
-    drawAnns(ctx, W, H, i, S, nums);
     const rot = rotOf(S, i);
     let cv = c;
     if (rot) {
@@ -257,7 +287,17 @@ export async function renderPages({ S, pages, W, onPage, only }) {
       x2.rotate((rot * Math.PI) / 180); x2.drawImage(c, 0, 0);
       cv = c2;
     }
-    out.push({ canvas: cv, w: cv.width, h: cv.height });
+    // Turn the page first, then draw the marks on the turned page so they stay upright.
+    const cx = cv.getContext("2d"); cx.setTransform(1, 0, 0, 1, 0, 0);
+    let marks = null;
+    if (split) {
+      // The page stays clean and the marks go on a transparent layer, so "Hide feedback" can hide them.
+      if (S.anns.some((a) => a.page === i && !a._draft && a.type !== "box")) {
+        marks = document.createElement("canvas"); marks.width = cv.width; marks.height = cv.height;
+        drawAnns(marks.getContext("2d"), cv.width, cv.height, i, S, nums, true, rot);
+      }
+    } else drawAnns(cx, cv.width, cv.height, i, S, nums, skipBoxes, rot);
+    out.push({ canvas: cv, marks, w: cv.width, h: cv.height });
     if (onPage) onPage(cv, i);
   }
   return out;
@@ -265,18 +305,27 @@ export async function renderPages({ S, pages, W, onPage, only }) {
 
 /* ---------- PDF ---------- */
 
-// Returns a PDF Blob: the original pages with all annotations burned in.
-export async function exportPdf({ S, pages }) {
+// Returns a PDF Blob: cover (and, for UPSC, parameter-wise marks and overall feedback), the copy with its marks burned in,
+// then one consolidated feedback section whose numbers and colours match the highlights.
+export async function exportPdf({ S, pages, fileName, qpName }) {
   const W = 1400, PT = 595, doc = await PDFDocument.create();
+  await Promise.all([document.fonts.load("400 24px Kalam"), document.fonts.load("700 24px Kalam"), document.fonts.load("400 24px 'Reddit Sans'"), document.fonts.load("600 24px 'Reddit Sans'"), document.fonts.load("700 24px 'Reddit Sans'")]);
+  const R = buildResult({ S, pages, fileName, qpName });
   const rendered = await renderPages({ S, pages, W });
-  for (const r of rendered) {
-    const b64 = r.canvas.toDataURL("image/jpeg", 0.9).split(",")[1];
+  const embed = async (cv, q) => {
+    const b64 = cv.toDataURL("image/jpeg", q).split(",")[1];
     const bin = atob(b64), bytes = new Uint8Array(bin.length);
     for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
-    const img = await doc.embedJpg(bytes), h = (PT * r.h) / r.w;
+    return doc.embedJpg(bytes);
+  };
+  const front = frontPages(R);
+  for (const cv of front) { const img = await embed(cv, 0.92), pg = doc.addPage([PT, 842]); pg.drawImage(img, { x: 0, y: 0, width: PT, height: 842 }); }
+  for (const r of rendered) {
+    const img = await embed(r.canvas, 0.9), h = (PT * r.h) / r.w;
     const pg = doc.addPage([PT, h]);
     pg.drawImage(img, { x: 0, y: 0, width: PT, height: h });
   }
+  for (const cv of feedbackPages(R, front.length + rendered.length)) { const img = await embed(cv, 0.92), pg = doc.addPage([PT, 842]); pg.drawImage(img, { x: 0, y: 0, width: PT, height: 842 }); }
   const out = await doc.save();
   return new Blob([out], { type: "application/pdf" });
 }
@@ -286,64 +335,9 @@ export async function exportPdf({ S, pages }) {
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const nl = (s) => esc(s).replace(/\n/g, "<br>");
 
-// Returns an HTML string: one self-contained page with the details, marks,
-// feedback and every page of the evaluated copy.
-export async function exportHtml({ S, pages, fileName }) {
-  const rendered = await renderPages({ S, pages, W: 1100 });
-  const nums = numbered(S), t = totals(S), upsc = S.cohort === "upsc", m = S.meta, es = edgeSummary(S);
-  const date = new Date().toISOString().slice(0, 10), cnt = countMarks(S);
-  const det = [["Student", m.student], ["Reviewer", m.reviewer], ["Team", TEAMS[S.cohort] || ""], ["Subject", m.subject], [testLabel(S), m.test]];
-  if (S.cohort === "foundation") det.push(["Board and class", [m.board, m.klass && "Class " + m.klass].filter(Boolean).join(" · ")]);
-  det.push(["Date", date], ["Copy", fileName || ""], ["Marks on the copy", String(cnt.total)]);
-
-  const rows = S.questions.map((q) => {
-    const got = q.attempted ? (q.marks == null ? "" : q.marks) : 0;
-    const notes = [!q.attempted ? "Not attempted" : "", q.objective ? "Objective" : "", ...(q.edge || []).map((k) => k + ((q.edgeNotes || {})[k] ? ": " + q.edgeNotes[k] : ""))].filter(Boolean).join(" · ");
-    return `<tr><td>Q${q.id}</td><td>${esc(upsc ? "Subjective" : q.type)}</td><td>${esc(q.max)}</td><td class="mk">${esc(got)}</td><td>${countMarks(S, q.id).total}</td><td>${esc(notes)}${q.comment ? `<br><i>${nl(q.comment)}</i>` : ""}</td></tr>`;
-  }).join("");
-
-  let params = "";
-  if (upsc) {
-    params = "<h2>Parameters</h2>" + S.questions.filter((q) => q.attempted).map((q) =>
-      `<h3>Q${q.id}</h3><table><tr><th>Parameter</th><th>Marks</th><th>Feedback</th></tr>` +
-      q.params.map((p) => `<tr><td>${esc(p.name)}</td><td class="mk">${esc(p.marks == null ? "" : p.marks)} / ${PARAM_MAX}</td><td class="fb">${nl(p.feedback)}</td></tr>`).join("") + "</table>").join("");
-    if (S.overall && S.overall.trim()) params += `<h2>Overall summary</h2><p class="fb">${nl(S.overall)}</p>`;
-  }
-
-  const list = S.anns.filter((a) => !a._draft && (a.type === "box" || (a.type === "underline" && String(a.text || "").trim())))
-    .sort((a, b) => a.q - b.q || a.page - b.page || a.y - b.y || a.x - b.x);
-  const fbHtml = list.length ? "<h2>Feedback</h2>" + list.map((a) => {
-    const c = (COLORS[a.color] || COLORS.red), lab = a.type === "box" ? "#" + nums[a.id] : "Underline";
-    return `<div class="item" style="border-left-color:${c.hex}"><b>${lab}</b> <span class="meta">Q${a.q} · Page ${a.page + 1} · ${c.label}</span><p class="fb">${nl(a.text)}</p></div>`;
-  }).join("") : "";
-
-  const pageHtml = rendered.map((r, i) =>
-    `<figure><figcaption>Page ${i + 1}</figcaption><img alt="Page ${i + 1} with marks" src="${r.canvas.toDataURL("image/jpeg", 0.82)}"></figure>`).join("");
-
-  return `<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(m.test || "Evaluation")} · ${esc(m.student)} · ${esc(m.subject)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&family=Reddit+Sans:wght@400;600;700&display=swap" rel="stylesheet">
-<style>
-body{margin:0;background:#F4F5F7;color:#1B2124;font:14px/1.5 'Reddit Sans',system-ui,sans-serif}
-main{max-width:860px;margin:0 auto;padding:24px 16px 60px}
-h1{font-size:22px;margin:0 0 4px}h2{font-size:16px;margin:28px 0 8px}h3{font-size:13px;margin:14px 0 6px;color:#5C6670}
-.card{background:#fff;border:1px solid #D9DCE1;border-radius:12px;padding:16px 18px}
-dl{display:grid;grid-template-columns:130px 1fr;gap:4px 12px;margin:0}dt{color:#5C6670}dd{margin:0;font-weight:600}
-.score{font:700 34px 'Kalam',cursive;color:#BF2734;line-height:1.1;margin-top:12px}.score small{font-size:15px;color:#5C6670;font-family:'Reddit Sans',sans-serif;font-weight:400}
-table{width:100%;border-collapse:collapse;background:#fff;border:1px solid #D9DCE1;border-radius:8px;overflow:hidden}
-th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #E4E7EA;vertical-align:top}th{background:#F4F5F7;font-size:12px;color:#5C6670}
-.mk{font-family:'Kalam',cursive;font-weight:700;color:#BF2734;font-size:16px;white-space:nowrap}
-.fb{font-family:'Kalam',cursive;font-size:14px;line-height:18px}
-.item{background:#fff;border:1px solid #D9DCE1;border-left:5px solid;border-radius:8px;padding:8px 12px;margin-bottom:8px}.item p{margin:4px 0 0}.meta{color:#5C6670;font-size:12px}
-figure{margin:18px 0}figcaption{font-size:12px;color:#5C6670;margin-bottom:4px}img{width:100%;height:auto;display:block;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.25)}
-@media print{body{background:#fff}figure{break-inside:avoid}}
-</style></head><body><main>
-<h1>${esc(m.test || "Evaluation")}</h1>
-<div class="card"><dl>${det.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>
-<div class="score">${esc(t.got)} <small>out of ${esc(t.max)} · ${t.pct.toFixed(0)}% · ${esc(t.remark)}</small></div>${es.ops ? '<p class="meta">Flagged for Ops review.</p>' : ""}</div>
-<h2>Marks</h2><table><tr><th>Question</th><th>Type</th><th>Max</th><th>Marks</th><th>Marks on copy</th><th>Notes</th></tr>${rows}</table>
-${params}${fbHtml}
-<h2>Evaluated copy</h2>${pageHtml}
-</main></body></html>`;
+// Returns an HTML string: the student-facing Result Experience, built from the canonical result.
+export async function exportHtml({ S, pages, fileName, qpName }) {
+  const R = buildResult({ S, pages, fileName, qpName });
+  const rendered = await renderPages({ S, pages, W: 1100, split: true });
+  return buildHtml({ R, S, rendered });
 }
