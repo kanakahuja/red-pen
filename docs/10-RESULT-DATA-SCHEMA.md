@@ -11,11 +11,12 @@ Nothing from the DS callback or manifest is dropped: both files are stored uncha
 | `js/result.js` | Builds the canonical result: cover, questions, type 1 feedback list, type 2 marks, pages, evaluation, warnings. |
 | `js/resulthtml.js` | The HTML Result Experience (from the canonical result). |
 | `js/pdfpages.js` | The cover, UPSC parameter and overall pages, and the consolidated feedback pages of the PDF. |
-| `js/export.js` | `buildExport` (JSON), `exportPdf`, `exportHtml`, import. |
+| `js/export.js` | `buildExport` (JSON), `exportPdf`, `exportHtml`, `applyImport`. |
+| `js/importer.js` | Import of a saved evaluation: `validateJson` (schema, marks, positions, caps, duplicates), `matchCopy` (PDF fingerprint, page count, page sizes). |
 
-## Redpen JSON (`schema: redpen/v1`, `schema_version: 1.2`)
+## Redpen JSON (`schema: redpen/v1`, `schema_version: 1.3`)
 
-The earlier 1.1 fields are unchanged. 1.2 adds:
+1.3 adds `copy.sha256`, `copy.size_bytes` and `copy.kind` (the fingerprint of the PDF the marks were made on, used by Import; `null` for photos and for copies opened where hashing is not available). The earlier 1.1 fields are unchanged. 1.2 adds:
 
 ```
 student            { id|null, name, contact|null }
@@ -23,7 +24,7 @@ test               { id|null, name|null, code|null, date|null, subject, total_ma
 cohort_details     Foundation: { course, class, board }      UPSC: { test_code, contact|null }
 result             { marks_obtained, total_marks, percent, remark{ text, tone } }       remark from marks % (PRD 4.3 B)
 parameters_config  UPSC: { names[], max_marks }              Foundation: null
-overall            UPSC: { summary, strengths[], improvements[] }   Foundation: null
+overall            UPSC and Foundation: { status, summary, strengths[], improvements[] }   (status: "submitted" or "pending"; Foundation also carries it in overall_summary)
 feedback_index     [{ id, order, number, label, question, page, color, polarity, parameter }]   type 1: numbered boxes, and underlines with a comment ("U")
 handwritten_index  [{ id, order, type, question, page }]       type 2: tick, cross, underline, circled score, strike, stamp, text, circle, pen
 evaluation         { id, timestamp, started_at, platform, language, model, evaluator, source, file, file_base, question_paper }

@@ -62,7 +62,7 @@ This is one of the strongest guidelines in this SOP. Marks, the actual answer, a
 | Blank / not attempted | Zero. Don't guess intent. |
 | Multiple options marked | Zero. Ambiguous response is treated as incorrect. |
 
-### Subjective questions (Short answer / Long answer / Numerical / Language)
+### Subjective questions (Short answer / Long answer / Numerical / Language / Comprehensive / Case study)
 | Case | Marks to award | Why |
 |---|---|---|
 | Blank / not attempted | 0 | Nothing to assess. |

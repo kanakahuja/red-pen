@@ -19,7 +19,7 @@ export function downloadFile(name, data, type) {
 
 /* ---------- JSON ---------- */
 
-export function buildExport({ S, pages, fileName, qpName }) {
+export function buildExport({ S, pages, fileName, qpName, fileMeta }) {
   const nums = numbered(S), t = totals(S), es = edgeSummary(S), upsc = S.cohort === "upsc";
   const seq = new Map(S.anns.filter((a) => !a._draft).map((a, i) => [a.id, i + 1]));
   const r1 = (v) => Math.round(v * 10) / 10;
@@ -33,7 +33,7 @@ export function buildExport({ S, pages, fileName, qpName }) {
       }
       if (a.type === "text") { o.text = a.value; o.font_size = fsOf(a); o.align = a.al || "left"; o.rotation = a.rot || 0; }
       if (a.type === "pen") o.points = a.pts;
-      if (a.color) { o.color = a.color; if (a.type === "box" || a.type === "underline") o.polarity = (COLORS[a.color] || COLORS.red).pol; }
+      if (a.color) { o.color = ["underline", "text", "circle", "pen"].indexOf(a.type) >= 0 ? "red" : a.color; if (a.type === "box" || a.type === "underline") o.polarity = (COLORS[a.type === "underline" ? "red" : a.color] || COLORS.red).pol; }
       if (a.type === "box") o.number = nums[a.id];
       if (a.type === "box" || a.type === "underline") o.feedback = a.text;
       if (a.type === "score") o.score = a.value;
@@ -77,7 +77,7 @@ export function buildExport({ S, pages, fileName, qpName }) {
   const R = buildResult({ S, pages, fileName, qpName, now });
   return {
     schema: SCHEMA,
-    schema_version: "1.2",
+    schema_version: "1.3",
     evaluation_id: S.evalId || "",
     file: fileName,
     started_at: S.startedAt || "",
@@ -85,7 +85,7 @@ export function buildExport({ S, pages, fileName, qpName }) {
     minutes_spent: started ? Math.max(1, Math.round((now - started) / 60000)) : null,
     cohort: S.cohort,
     meta,
-    copy: { file: fileName, page_count: pages.length },
+    copy: { file: fileName, page_count: pages.length, kind: (fileMeta && fileMeta.kind) || null, size_bytes: (fileMeta && fileMeta.size) || null, sha256: (fileMeta && fileMeta.sha256) || null },
     question_paper: { name: qpName || "", link: m.paperLink || "" },
     position_units: "position = fractions (0 to 1) of the page as opened, origin top-left; position_px = the same in that page's own units (PDF points, or image pixels); position_as_shown = after the page was turned (see page_rotation)",
     test_total_marks: S.testTotal,
@@ -104,7 +104,7 @@ export function buildExport({ S, pages, fileName, qpName }) {
       if (upsc) o.parameters = q.params.map((p) => ({ name: p.name, marks: p.marks, max_marks: PARAM_MAX, feedback: p.feedback || "" }));
       return o;
     }),
-    overall_summary: upsc ? S.overall : undefined,
+    overall_summary: (upsc || S.cohort === "foundation") ? S.overall : undefined,
     totals: {
       marks_obtained: t.got, total_marks: t.max, percent: +t.pct.toFixed(1), remark: t.remark,
       questions_attempted: S.questions.filter((q) => q.attempted).length,
@@ -173,9 +173,10 @@ export function applyImport(S, json, asDraft, pageCount) {
     const a = { id: uid(), type: o.type, page: Math.max(0, (o.page || 1) - 1), q: o.scope === "test_total" ? 0 : (o.question || 1), x: o.x || 0, y: o.y || 0, src: asDraft ? "ai" : "reviewer" };
     if (["box", "underline", "strike", "circle", "pen", "text"].indexOf(o.type) >= 0) { a.w = o.width || 0.3; a.h = o.height || 0; }
     if (o.color) a.color = COLORS[o.color] || PENC[o.color] ? o.color : "red";
-    if (o.type === "text") { a.value = o.text || ""; a.fs = o.font_size || 12; a.al = o.align || "left"; a.rot = o.rotation || 0; if (!a.color) a.color = "red"; }
+    if (o.type === "text") { a.value = o.text || ""; a.fs = o.font_size || 12; a.al = o.align || "left"; a.rot = o.rotation || 0; a.color = "red"; }
     if (o.type === "pen") a.pts = o.points || [];
-    if (o.type === "box" || o.type === "underline") { a.text = o.feedback || ""; if (!a.color) a.color = "red"; }
+    if (o.type === "circle" || o.type === "pen") a.color = "red";
+    if (o.type === "box" || o.type === "underline") { a.text = o.feedback || ""; if (!a.color || o.type === "underline") a.color = "red"; }
     if (o.type === "score") a.value = String(o.score == null ? "" : o.score);
     if (o.parameter) a.param = o.parameter;
     if (o.ds_ref) a.ds = o.ds_ref;
@@ -238,7 +239,7 @@ function drawAnns(ctx, W, H, pi, S, nums, skipBoxes, rot) {
       ctx.strokeStyle = RED; ctx.lineWidth = u * 0.25; ctx.beginPath(); ctx.moveTo(x - tw / 2, y + u * 2.1); ctx.lineTo(x + tw / 2, y + u * 2.1); ctx.stroke();
     } else if (a.type === "text") {
       const fpx = u * fsCq(a), maxW = (a.w || 0.4) * Wo, al = a.al || "left";
-      ctx.textBaseline = "top"; ctx.textAlign = al; ctx.fillStyle = PENC[a.color] || RED; ctx.font = `400 ${fpx}px Kalam,cursive`;
+      ctx.textBaseline = "top"; ctx.textAlign = al; ctx.fillStyle = RED; ctx.font = `400 ${fpx}px Kalam,cursive`;
       const lines = [];
       String(a.value || "").split("\n").forEach((par) => { (par.trim() ? wrapLines(ctx, par, maxW) : [""]).forEach((l) => lines.push(l)); });
       // The box grows away from its corner on the answer, like on screen.
@@ -249,15 +250,15 @@ function drawAnns(ctx, W, H, pi, S, nums, skipBoxes, rot) {
       ctx.restore(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
     } else if (a.type === "circle") {
       const q = P(a.x + a.w, a.y + a.h);
-      ctx.strokeStyle = PENC[a.color] || RED; ctx.lineWidth = u * 0.4; ctx.beginPath();
+      ctx.strokeStyle = RED; ctx.lineWidth = u * 0.4; ctx.beginPath();
       ctx.ellipse((x + q[0]) / 2, (y + q[1]) / 2, Math.abs(q[0] - x) / 2, Math.abs(q[1] - y) / 2, 0, 0, Math.PI * 2); ctx.stroke();
     } else if (a.type === "pen") {
-      ctx.strokeStyle = PENC[a.color] || RED; ctx.lineWidth = u * 0.45; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
+      ctx.strokeStyle = RED; ctx.lineWidth = u * 0.45; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.beginPath();
       (a.pts || []).forEach((q, k) => { const s = P(a.x + q[0] * a.w, a.y + q[1] * a.h); if (k === 0) ctx.moveTo(s[0], s[1]); else ctx.lineTo(s[0], s[1]); });
       ctx.stroke();
     } else if (a.type === "underline" || a.type === "strike") {
       const q = P(a.x + a.w, a.y);
-      ctx.strokeStyle = a.type === "strike" ? RED : (PENC[a.color] || RED); ctx.lineWidth = u * (a.type === "strike" ? 0.4 : 0.36); ctx.lineCap = "round";
+      ctx.strokeStyle = RED; ctx.lineWidth = u * (a.type === "strike" ? 0.4 : 0.36); ctx.lineCap = "round";
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(q[0], q[1]); ctx.stroke();
     }
   });

@@ -8,6 +8,19 @@ export const CONFIG = {
   submitHeaders: {},
 };
 
+// Limits for importing a saved evaluation (JSON + the PDF of the same copy).
+export const IMPORT_LIMITS = {
+  jsonBytes: 10 * 1048576,        // the JSON file
+  pdfBytes: 150 * 1048576,        // the PDF file
+  pdfPages: 300,
+  annotations: 5000,              // marks in one file
+  questions: 200,
+  text: 10000,                    // one feedback or note
+  overall: 20000,                 // overall feedback
+  penPoints: 3000,                // points in one pen stroke
+  maxMarks: 1000,                 // one question, or the test total
+};
+
 export const STAMPS = ["Good", "Very Good", "Incomplete", "Irrelevant", "Needs more detail"];
 
 // Teams. The SME picks one for every copy; it decides which fields appear.
@@ -31,6 +44,7 @@ export const QTYPES = [
   { k: "Diagram" }, { k: "Long Answer" }, { k: "MCQ", obj: true }, { k: "Numerical" }, { k: "Short Answer" },
   { k: "True/False", obj: true }, { k: "Fill in the blank", obj: true }, { k: "One word", obj: true },
   { k: "Matching", obj: true }, { k: "Language" }, { k: "Assertion Reason", obj: true },
+  { k: "Comprehensive" }, { k: "Case Study" },
 ];
 export const OTHER_TYPE = "__other_type";
 // Every UPSC question is subjective.

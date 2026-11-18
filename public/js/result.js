@@ -26,7 +26,7 @@ export function buildResult({ S, pages, fileName, qpName, now }) {
   gaps.push("model_answers");
 
   const feedback = live.filter(isType1).sort((a, b) => a.page - b.page || a.y - b.y || a.x - b.x).map((a, i) => {
-    const isBox = a.type === "box", k = COLORS[a.color] ? a.color : "red";
+    const isBox = a.type === "box", k = a.type === "underline" ? "red" : (COLORS[a.color] ? a.color : "red");
     if (!clean(a.text)) warnings.push({ code: "box_without_feedback", message: "Highlight " + (nums[a.id] || "") + " on page " + (a.page + 1) + " has no feedback.", question: a.q, annotation: a.id });
     return {
       id: a.id, order: i + 1, number: isBox ? nums[a.id] : null, label: isBox ? String(nums[a.id]) : "U", kind: isBox ? "box" : "underline",
@@ -76,7 +76,8 @@ export function buildResult({ S, pages, fileName, qpName, now }) {
     cover: { fields: fields.map(([label, value]) => ({ label, value })), marks_obtained: t.got, total_marks: t.max, percent: +t.pct.toFixed(1), remark: remarkOf(t.pct), cover_total_written: !!ct.ann },
     questions,
     parameters: upsc ? { names: S.questions[0] ? S.questions[0].params.map((p) => p.name) : [], max_marks: PARAM_MAX } : null,
-    overall: upsc ? {
+    overall: (upsc || S.cohort === "foundation") ? {
+      status: clean(S.overall) ? "submitted" : "pending",
       summary: clean(S.overall),
       strengths: ds ? ((dsCb.overallFeedback || []).find((x) => x.key === "strengths") || { feedback: [] }).feedback : [],
       improvements: ds ? ((dsCb.overallFeedback || []).find((x) => x.key === "improvements") || { feedback: [] }).feedback : [],

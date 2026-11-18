@@ -1,22 +1,712 @@
-{
-  "success": true,
-  "statusCode": 200,
-  "data": {
-    "name": "Ai evaluation v2",
-    "type": "AIEvaluationV2",
-    "testActivityStatus": "Finished",
-    "userScore": 6.5,
-    "totalScore": 20,
-    "responseFiles": [],
-    "multiQuestionModelAnswerMappings": [],
-    "qbgQuestionsResult": [],
-    "overallRating": [],
-    "overallFeedback": [],
-    "annotationManifest": {
-      "manifestVersion": 1
-    },
-    "exportCover": {
-      "templateId": "upsc"
-    }
-  }
-}
+Continuation of Phase 1. This PRD builds on AI Grader — New Result Experience (Phase 1). The student result screen (cover page, annotations, tabs, download, report, rating) is exactly the same as Phase 1 for every test type. Phase 2 adds (1) multi-question hybrid subjective tests and (2) a reviewer toolkit on SEP so that everything the student sees in the result can be edited by the reviewer.
+
+Glossary and Full Forms
+
+General terms
+
+SEP: Student Evaluation Portal / Teacher Evaluation Portal. The web portal where copies are allotted, evaluated and reviewed. Link
+
+Hybrid test: a test evaluated by AI + reviewer. AI evaluates first, then a reviewer reviews and corrects the evaluation on SEP before the student sees the result.
+
+Pure AI test: a test evaluated by AI only, with no reviewer. This is the Phase 1 scope.
+
+Online test: the student attempts in the app or web, writes the answers on their own paper and uploads them.
+
+Offline test: the student writes the physical copy, and the Batch Manager uploads the scanned copy through admin.
+
+BM: Batch Manager. Uploads offline copies through admin.
+
+Toolkit: the set of tools on SEP that the reviewer uses to add, edit, move, resize, change or remove elements on the student's copy (Section 8).
+
+New Result Experience: the annotated student result screen built in Phase 1.
+
+Roles on SEP
+
+SEP has three roles:
+
+Admin: allots copies to evaluators and reviewers.
+
+Evaluator: evaluates a copy for the first time.
+
+Reviewer: reviews an evaluated copy and corrects it. In Hybrid tests the AI evaluation is reviewed by the reviewer, and this PRD refers to the person using the toolkit as the reviewer.
+
+Types of annotations
+
+The student's answer copy carries two types of annotations, as defined in Phase 1 (§4.4). Both types are fully editable on SEP in Phase 2.
+
+Type 1: Highlighted bounding box. A numbered, coloured box drawn around a part of the answer. Every box has a feedback comment with the same number and colour. A box without feedback is not allowed. Colours: red = mistake, yellow = needs improvement, green = correct.
+
+Type 2: Handwritten teacher-style marks. Marks drawn like a teacher marking with a pen. They have no numbered box and no feedback comment. The Type 2 marks are: tick, cross, underline, strike-through, circled score and text stamp. Only the underline can optionally carry a short comment.
+
+1. Introduction
+
+1.1 Context
+
+AI Grader evaluates handwritten answer sheets and assigns marks. In Hybrid tests the evaluation is done by AI first and then reviewed by a human reviewer on SEP before the student sees the result. Hybrid subjective tests run in two modes, and volume is split roughly evenly between them, so both must be supported together:
+
+Online – the student attempts through PW app/any platform, writes on their own paper and uploads it through pw app/any platform.
+
+Offline – the physical copy is collected offline and uploaded by the Batch Manager (BM) through admin.
+
+Phase 1 shipped the New Result Experience for Pure AI tests (online, in-app). Phase 1 §7.1 already commits Phase 2 to Subjective/Hybrid tests, online + offline, all platforms, with SEP edits reflecting in the student result. This document details that scope.
+
+1.2 Current state (as-is)
+
+Area
+
+Online
+
+Offline
+
+Test type supported
+
+Single-question tests only
+
+Single-question tests only
+
+Student / BM journey
+
+All Tests → Subjective Test → click test → attempt → upload → submit
+
+BM uploads the student's copy through admin using bulk upload feature.
+
+Evaluation
+
+AI evaluates
+
+AI evaluates
+
+Review
+
+Reviewer reviews on SEP
+
+Reviewer reviews on SEP
+
+Result
+
+Student receives result
+
+Student receives result
+
+1.3 Problem
+
+No multi-question tests. A hybrid subjective test can have only one question. Multi-question tests cannot be run, in either online or offline mode.
+
+SEP cannot edit the new result. The Phase 1 result has numbered highlight boxes, handwritten-style marks, stamps and a question-wise marks table. Reviewers need to be able to correct all of it, otherwise reviewed tests cannot use the New Result Experience.
+
+Design and tech need one clear definition of what is editable, how, and with what rules.
+
+2. Objectives
+
+Primary: Make the New Result Experience live for all subjective tests (Hybrid/Pure AI, single and multi-question, online and offline, Web/Android/iOS), with every reviewer change on SEP reflected in the student's result.
+
+Enable students to attempt multi-question subjective tests online.
+
+Enable BMs to upload copies of multi-question tests offline using the same admin flow.
+
+Give reviewers a toolkit on SEP to add, edit, move, resize, change and remove every annotation element, marks and feedback on the student copy.
+
+Keep the student result identical to Phase 1 so there is one result experience to build, test and support.
+
+3. Scope
+
+In scope
+
+Hybrid subjective tests, single and multi-question
+
+Online (student upload) and Offline (BM upload) flows
+
+Web, Android, iOS for the student side
+
+Copy quality check for multi-question uploads
+
+SEP reviewer toolkit and edit rules for every Phase 1 result element
+
+Student result in the Phase 1 New Result Experience, reflecting the reviewed version
+
+What does not change: single-question hybrid tests keep working as today; offline BM upload entry point stays the same; AI evaluation, the reviewer and the student report flow work as they do today; the Phase 1 result screen and student-side controls (Hide/Show Feedback, Download, Report, Rating) stay the same.
+
+4. Proposed Solution
+
+Channels: Web, Android, iOS (student). Admin (BM upload). SEP (reviewer, web only).
+
+Upload, submission, evaluation and result are all test-wise. The student uploads the complete answer copy once, as a PDF or as images, submits the whole test once, and gets one result.
+
+Quality check after the upload on the copy (readable, handwritten, has evaluatable content). Only the question where the check finds an issue is sent back for re-upload, and only once. After that the student can still submit.
+
+Offline stays one complete scanned copy pdf per student, uploaded by the BM.
+
+Same evaluation pipeline for online and offline: AI evaluates → copy goes to SEP → reviewer reviews with the toolkit → final reviewed copy goes to the student.
+
+Student only ever sees the reviewed version, never the AI draft.
+
+SEP toolkit: every element in the Phase 1 result is editable using a set of tools (Section 8).
+
+5. User Flows
+
+5.1 Student journey: online multi-question test
+
+The student opens All Tests → Subjective tab and selects the test.
+
+The student sees all questions of the test in one scrolling list, with the timer and test details at the top and the Upload Answers button at the bottom.
+
+The student reads the questions and writes the answers on their own paper.
+
+The student taps Upload Answers and uploads the complete answer copy once, as a PDF or as images.
+
+The quality check runs on the copy. If a question has an issue, the student is asked to re-upload the answer for that question, one time only.
+
+The student submits the full test.
+
+The student waits while AI evaluates and the reviewer reviews, and sees the evaluation-in-progress state.
+
+The student opens the result in the New Result Experience.
+
+6. Figma Links
+
+Description
+
+Figma Link
+
+Student result experience (same as Phase 1) – Web / App
+
+https://www.figma.com/design/5pQKwlt2uuLCQ21xyIx2vI/AI-Grader-Main?node-id=20981-20185&p=f&t=Ab34TIl1Ya3m3HCd-0 
+
+Multi-question test list, upload and submit – Web / Android / iOS
+
+
+
+SEP reviewer toolkit
+
+
+
+7. SEP Reviewer Toolkit
+
+Principle: whatever the student sees in the Phase 1 result is editable by the reviewer on SEP. The reviewer works on the same view the student will get, with a toolkit to change it. The reviewer's final version is what the student sees.
+
+7.1 What is editable (element by element)
+
+Result element (Phase 1)
+
+Reviewer can
+
+Rules
+
+Cover page: student details (name, course, class, board, test name, contact no., test date)
+
+View only
+
+System data. Fields shown per cohort as in Phase 1 §4.3.
+
+Cover page: question-wise marks table
+
+Edit Marks obtained per question
+
+Max marks are read-only. Marks cannot be below 0 or above the question's max marks. Decimals allowed. Unattempted question shows 0.
+
+Cover page: Marks obtained / Total marks
+
+Not edited directly
+
+Auto-calculated: obtained = sum of question marks; total = sum of max marks (Phase 1 §4.3 D).
+
+Cover page: Remark
+
+Not edited directly
+
+Auto-derived from marks % with the Phase 1 logic and cohort configuration. Re-derived whenever marks change.
+
+Parameter-wise marks table (UPSC only)
+
+Edit
+
+Reviewers can edit parameter-level marks on SEP.
+
+Overall summary / feedback page (UPSC only)
+
+Edit the text
+
+Free text. Cannot be saved empty if the cohort shows this page.
+
+Type 1: Highlighted bounding box (red / yellow / green, numbered, with feedback)
+
+Add, move, resize, delete, change colour, edit feedback text
+
+See 8.3.
+
+Type 2: Tick, Cross
+
+Add, move, delete, switch tick ↔ cross
+
+See 8.4.
+
+Type 2: Underline
+
+Add, move, resize, delete, change colour (red / green), add / edit / remove optional comment
+
+See 8.4.
+
+Type 2: Strike-through
+
+Add, move, resize, delete
+
+See 8.4.
+
+Type 2: Circled score
+
+Add, move, edit value, delete
+
+See 8.4.
+
+Type 2: Text stamp
+
+Add, change, move, delete
+
+One per question. See 8.4.
+
+Model Answer
+
+Not editable on SEP
+
+Out of scope.
+
+Student-side controls (Hide/Show Feedback, Download, Report, Rating)
+
+Not part of SEP
+
+Unchanged from Phase 1. Evaluated Answer Paper download carries the reviewed version.
+
+7.2 Toolkit: tools and workspace
+
+Tool / panel
+
+Purpose
+
+Behaviour
+
+Priority
+
+Select / Move
+
+Pick any existing annotation to edit
+
+Click selects. Drag moves. Handles resize boxes, underlines and strike-throughs. Selected item shows its properties (colour, comment, value).
+
+Must
+
+Highlight box
+
+Add a Type 1 box
+
+Colour picker with red / yellow / green and their meaning (mistake / needs improvement / correct). Drag on the answer to draw. A feedback input opens immediately.
+
+Must
+
+Tick and Cross
+
+Mark a point as correct / wrong
+
+Click to place on the answer.
+
+Must
+
+Underline
+
+Mark a word or line
+
+Drag to draw. Colour red or green. Optional comment field.
+
+Must
+
+Strike-through
+
+Mark wrong or unneeded content
+
+Drag over the content.
+
+Must
+
+Circled score
+
+Write marks next to a question or part
+
+Click to place, type the value. Shown in the circled, handwritten style as in Phase 1.
+
+Must
+
+Stamp
+
+Short remark on a question
+
+Dropdown: Good, Very Good, Incomplete, Irrelevant, Needs more detail. Click to place.
+
+Must
+
+Delete
+
+Remove the selected annotation
+
+Delete key and a delete button. Removing a box also removes its feedback comment.
+
+Must
+
+Undo / Redo
+
+Recover from mistakes
+
+Covers add, move, resize, colour, text and delete within the session.
+
+Should
+
+Question navigator
+
+Move between questions in a multi-question copy
+
+Shows each question with its marks and attempted / unattempted state.
+
+Must
+
+Page navigation and zoom
+
+Work on multi-page answers
+
+Annotations stay anchored to their page and position at every zoom level.
+
+Must
+
+Feedback panel
+
+See all Type 1 comments of the question
+
+Lists comments in position order with their number and colour. Clicking one highlights its box on the answer, and vice versa.
+
+Must
+
+Marks panel
+
+Edit question marks
+
+Shows live recalculated total and remark.
+
+Must
+
+AI draft vs reviewer view
+
+Know what has been changed
+
+Annotations changed or added by the reviewer are marked as edited. Option to restore an AI annotation to its original.
+
+Should
+
+Save draft and Submit review
+
+Save progress and finalise
+
+Work is auto-saved as draft. Submit review runs validation and releases the result.
+
+Must
+
+7.3 Rules for Type 1: Highlighted bounding box
+
+Action
+
+Rule
+
+Add
+
+Reviewer draws a box on the exact part of the answer and picks a colour. A feedback comment is mandatory before the box can be saved.
+
+Move / resize
+
+Box stays within the page it is on. Feedback comment stays attached.
+
+Change colour
+
+Allowed between red, yellow and green. Polarity follows the colour: red is negative, yellow is neutral, green is positive. The comment keeps the same number and colour as its box.
+
+Edit feedback
+
+Free text. Cannot be empty. Reviewer is guided to keep one point per box. A comment with both praise and a mistake should be split into two boxes (Phase 1 §4.4).
+
+Delete
+
+Box and its comment are removed together. Remaining boxes renumber.
+
+Numbering
+
+Numbers are auto-assigned by position (top to bottom, page by page) and update automatically on add, move or delete. Reviewer never types a number. No number is repeated within the answer sheet (Phase 1 User Story 2).
+
+Tone
+
+Same meaning for all cohorts. Foundation feedback is simple and encouraging, UPSC is analytical and exam-oriented.
+
+No feedback case
+
+If a point needs no comment, the reviewer uses a Type 2 mark instead of a box.
+
+7.4 Rules for Type 2: Handwritten teacher-style marks
+
+Mark
+
+Add
+
+Edit / change
+
+Delete
+
+Rules
+
+Tick / Cross
+
+Click on the answer
+
+Switch between tick and cross; move
+
+Yes
+
+No feedback box.
+
+Underline
+
+Drag on the word or line
+
+Colour red (mistake) or green (good point); resize; move; add, edit or remove the optional comment
+
+Yes
+
+The only Type 2 mark that can carry a comment. If a comment exists it shows with the underline, otherwise the underline shows alone.
+
+Strike-through
+
+Drag over the content
+
+Resize; move
+
+Yes
+
+For wrong or irrelevant content.
+
+Circled score
+
+Click next to the question or part
+
+Edit value; move
+
+Yes
+
+Shown in red, handwritten-style as in Phase 1. Set by the reviewer through the toolkit.
+
+Text stamp
+
+Pick from the list, click to place
+
+Replace with another stamp; move
+
+Yes
+
+Maximum one stamp per question. No stamp on an unattempted question (it shows 0 marks). No stamp where the answer only needs a tick or cross (objective type).
+
+All Type 2 marks stay on the exact part of the answer they refer to, and stay in place while scrolling and across multi-page answers. They never open a feedback box (except the optional underline comment).
+
+7.5 Validation on Submit Review
+
+Check
+
+Result if it fails
+
+Every Type 1 box has a non-empty feedback comment
+
+Submit blocked. The box is highlighted in the workspace.
+
+Every question's marks are present and between 0 and its max marks
+
+Submit blocked. The question is flagged in the navigator.
+
+UPSC: overall summary filled where the cohort shows it
+
+Submit blocked.
+
+Totals and remark recomputed from the latest marks
+
+Automatic. Not a reviewer action.
+
+8. Epics & User Stories
+
+Numbering: UST = student, USA = admin / Batch Manager, USS = SEP reviewer. All student-side behaviour applies to Web, Android and iOS unless stated. For screen-level specifics, refer to the designs "as given in figma".
+
+Epic 1: Attempt a multi-question subjective test online
+
+As a student, I should be able to attempt a test with multiple questions, uploading my complete answer copy once and submitting the test once, so that I get one complete evaluation.
+
+UST101: Question list for a multi-question test
+
+Acceptance Criteria:
+
+From All Tests → Subjective tab, tapping a multi-question test opens one screen with all its questions in a single scrolling list, in order, as given in figma.
+
+The top of the screen shows the countdown timer for the test duration, the test name, and the test summary: number of questions, total marks and duration (for example 10 Questions | 250 Marks | 180 min).
+
+Each question in the list shows its question number (Ques 1, Ques 2, ...), its marks and the full question text. Questions are separated by a divider.
+
+An Upload Answers button stays fixed at the bottom of the screen while the student scrolls through the questions.
+
+The student can read all the questions and write the answers on their own paper before uploading.
+
+Single-question tests continue to open exactly as today.
+
+Edge cases: question text fails to load (show retry, do not allow submit); student force-closes the app mid-test (uploaded answers and statuses are restored on reopen); test opened on a second device (statuses reflect the latest uploads); old app version that does not support multi-question tests (handled as in UST501).
+
+UST102: Upload the answer copy once
+
+Acceptance Criteria:
+
+Tapping Upload Answers opens the upload step, as given in figma.
+
+The student uploads the complete answer copy for the whole test in one go, either as a PDF or as images (more than one image is allowed), using the existing upload method. The student does not upload question by question.
+
+Before submitting the test, the student can replace the upload.
+
+After a successful upload, the quality check runs (see UST103).
+
+Edge cases: upload fails because of file size (clear message with the allowed limit); no network (retry, upload is not marked successful); network drops mid-upload; double-tap on upload; several images where one fails to upload (the upload is not accepted until all images are uploaded); app killed during upload.
+
+UST103: Copy quality check with one-time re-upload
+
+Acceptance Criteria:
+
+After the upload, the copy is checked for: (1) it is readable and evaluation is possible (not blurry), (2) it is handwritten, (3) it has content that can be evaluated.
+
+The check runs on the whole copy and finds which question has an issue and which check failed.
+
+If all checks pass, the copy is accepted.
+
+If a check fails, the student sees which question and which check failed, and is asked to re-upload the answer for that question, one time only. Questions that passed are not asked again.
+
+If the re-upload also fails a check, or the student has already re-uploaded once for that question, the answer is accepted as it is and the student can submit the test. The student is not blocked, and nothing is flagged to the reviewer.
+
+Edge cases: check service is slow or fails (copy is accepted without a check result; student is not blocked); student replaces the upload later (the check runs again, and the one-time re-upload rule is counted per question across all replacements); more than one question fails at the same time (all are shown, and each can be re-uploaded once); multi-page PDF where only some pages fail.
+
+UST104: Submit the full test
+
+Acceptance Criteria:
+
+The student submits the test once, after uploading the answer copy. Submit is disabled until a copy is uploaded.
+
+If the check found questions that have no answer in the copy, a confirmation lists them before submit. Unattempted questions get 0 marks (Phase 1 §4.3 C).
+
+After submit, the upload cannot be changed and the student sees the evaluation-in-progress state, as given in figma.
+
+Edge cases: submit with no network (not marked submitted, retry available); double-tap on submit (one submission only); app closed right after submit (status is restored from the server on reopen); test timer ends while the student is mid-upload (follows existing test rules, unchanged).
+
+Epic 2: Offline multi-question tests
+
+As a Batch Manager, I should be able to upload the physical copies of a multi-question test through admin, so that offline students get the same evaluation and result as online students.
+
+USA201: BM uploads the copy for a multi-question test
+
+Acceptance Criteria:
+
+The BM uploads one complete scanned copy per student for the test, using the existing admin entry point. The upload flow stays the same as today.
+
+Multi-question tests are available for selection in the same way as single-question tests.
+
+After upload, the copy goes to AI evaluation and then to SEP, the same as the online flow.
+
+No quality check is applied to the BM's upload, same as today.
+
+Edge cases: upload fails (clear error, BM can retry); wrong student or wrong test mapped (existing admin correction behaviour, unchanged); a copy uploaded twice for the same student and test (latest one is used; confirmation shown); pages missing or out of order in the scan.
+
+UST202: Offline student sees the New Result Experience
+
+Acceptance Criteria:
+
+Once the reviewer submits the review, an offline student sees the result in the New Result Experience on Web, Android and iOS, the same as an online student.
+
+The student's own answer copy and Download → My Answer Paper use the BM-uploaded scan.
+
+Edge cases: student has no app login or account mapping (existing behaviour, unchanged); result opened on an old app version (UST501).
+
+Epic 3: Evaluation, review and result release
+
+As a student, I should receive one reviewed result for my whole test, so that I see the final marks and feedback only after a human has checked them.
+
+UST301: Test-wise evaluation and reviewed result
+
+Acceptance Criteria:
+
+AI evaluates the full test (all questions) once the test is submitted (online) or the copy is uploaded (offline).
+
+The evaluated copy is sent to SEP. The student does not see the AI draft at any point.
+
+When the reviewer submits the review, the final reviewed result is released and opens in the Phase 1 New Result Experience: cover page with question-wise marks table, annotated answer copy, Model Answer tab, Hide/Show Feedback, Report, Download (3 files) and Rating, all unchanged from Phase 1.
+
+The cover page, annotations, marks and feedback shown to the student match exactly what the reviewer submitted.
+
+Until the review is submitted the student continues to see the evaluation-in-progress state.
+
+Edge cases: AI evaluation fails for a test (copy is not lost, goes to a retry / manual path, existing behaviour); reviewer submits while the student has the result screen open (updated on next open or refresh).
+
+Epic 4: SEP reviewer toolkit
+
+As a reviewer, I should be able to edit, remove and add every element of the student's result using a toolkit, so that the final result reflects my judgement and not only the AI draft.
+
+USS401: Review workspace for a multi-question copy
+
+Acceptance Criteria:
+
+The reviewer opens a copy in a workspace that shows the student's answer copy exactly as the student will see it (Phase 1 annotated view), with the toolkit in 8.2.
+
+A question navigator lists all questions with marks and attempted / unattempted state.
+
+The reviewer can move across questions and pages without losing unsaved changes. Annotations stay anchored to their page and position at every zoom level.
+
+AI-generated annotations load as editable items. Items changed or added by the reviewer are marked as edited.
+
+Work is auto-saved as a draft. Closing and reopening the copy restores the draft.
+
+Edge cases: browser refresh or session timeout (draft restored); very long or many-page answers (workspace stays responsive); copy with no AI annotations (reviewer can add from scratch).
+
+USS402: Edit highlighted bounding boxes (Type 1)
+
+Acceptance Criteria:
+
+The reviewer can add, move, resize and delete boxes, change a box's colour between red / yellow / green, and edit its feedback, following the rules in 8.3.
+
+A box cannot be saved without a feedback comment.
+
+Box numbers and comment numbers are assigned automatically in position order and always match, with the same colour.
+
+Changing a colour changes the polarity of that feedback.
+
+Every change appears in the student result exactly as designed in Phase 1 (numbered box with matching comment, opening in position order).
+
+Edge cases: box drawn across two pages (not allowed, box stays on one page); box drawn outside the answer area; overlapping boxes (allowed, each remains selectable); deleting a box that a student has already reacted to with thumbs (the reaction data is retained for DS, see Tracking).
+
+USS403: Edit handwritten-style marks (Type 2)
+
+Acceptance Criteria:
+
+The reviewer can add, change, move, resize (where applicable) and delete ticks, crosses, underlines, strike-throughs, circled scores and stamps, following the rules in 8.4.
+
+An underline can optionally carry a comment, which the reviewer can add, edit or remove. No other Type 2 mark carries a comment.
+
+Only one stamp per question is allowed, and none on an unattempted question.
+
+The marks look and behave in the student result exactly as in Phase 1 (placed on the exact part of the answer, no feedback box, stay in place while scrolling and across pages).
+
+Edge cases: stamp added where a tick / cross already marks an objective answer (blocked); mark placed on a blank area of the page; very small underline or strike-through (minimum size enforced so it can be selected).
+
+USS404: Edit marks, cover page and totals
+
+Acceptance Criteria:
+
+The reviewer can edit marks obtained per question in the marks panel, within 0 to the question's max marks, decimals allowed.
+
+Total marks obtained, total marks and the remark update automatically on every change using the Phase 1 rules (sum of questions; remark from marks %, per cohort configuration). The reviewer cannot edit them directly.
+
+The cover page the student sees shows the same figures, and the question-wise table has one row per question, with 0 for unattempted questions.
+
+Student details on the cover page are read-only.
+
+Edge cases: marks entered above max or below 0 (field error, not saved); non-numeric input; a question with no AI marks (reviewer must enter marks before submit); marks changed after thumbs / reports exist on that question (existing reports are kept).
+

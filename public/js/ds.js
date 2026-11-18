@@ -74,15 +74,15 @@ export function fromDs(callback, manifest, opts) {
     (q.ops || []).forEach((op) => {
       const bb = op.bb || [[0, 0], [0, 0]], cx = r4((bb[0][0] + bb[1][0]) / 2), cy = r4((bb[0][1] + bb[1][1]) / 2);
       const ref = { kind: "ops", index: op.index, type: op.type };
-      const col = op.tone === "positive" ? "green" : "red";
+      const col = op.type === "underline" ? "red" : (op.tone === "positive" ? "green" : "red");
       if (op.type === "underline") ul.push({ type: "underline", page: op.page, question: qn, x: r4(bb[0][0]), y: r4((bb[0][1] + bb[1][1]) / 2), width: r4(bb[1][0] - bb[0][0]), color: col, feedback: "", ref });
       else if (op.type === "tick") annotations.push({ type: "tick", page: op.page, question: qn, x: cx, y: cy, ds_ref: ref });
       else if (op.type === "cross") annotations.push({ type: "cross", page: op.page, question: qn, x: cx, y: cy, ds_ref: ref });
       else if (op.type === "circled_score") annotations.push({ type: "score", page: op.page, question: qn, x: cx, y: cy, score: op.score == null ? "" : String(op.score), ds_ref: { ...ref, maxMarks: op.maxMarks } });
-      else if (op.type === "circle") annotations.push({ type: "circle", page: op.page, question: qn, x: r4(bb[0][0]), y: r4(bb[0][1]), width: r4(bb[1][0] - bb[0][0]), height: r4(bb[1][1] - bb[0][1]), color: col, ds_ref: ref });
+      else if (op.type === "circle") annotations.push({ type: "circle", page: op.page, question: qn, x: r4(bb[0][0]), y: r4(bb[0][1]), width: r4(bb[1][0] - bb[0][0]), height: r4(bb[1][1] - bb[0][1]), color: "red", ds_ref: ref });
       else if (op.type === "comment") {
         const h = (bb[1][1] - bb[0][1]) * 1.417, fs = Math.max(6, Math.min(60, Math.round(0.55 * h * 360)));
-        annotations.push({ type: "text", page: op.page, question: qn, x: r4(bb[0][0]), y: r4(bb[0][1]), width: r4(bb[1][0] - bb[0][0]), text: op.text || "", font_size: fs, align: "left", rotation: 0, color: col, ds_ref: ref });
+        annotations.push({ type: "text", page: op.page, question: qn, x: r4(bb[0][0]), y: r4(bb[0][1]), width: r4(bb[1][0] - bb[0][0]), text: op.text || "", font_size: fs, align: "left", rotation: 0, color: "red", ds_ref: ref });
       } else if (op.type === "strike") annotations.push({ type: "strike", page: op.page, question: qn, x: r4(bb[0][0]), y: r4((bb[0][1] + bb[1][1]) / 2), width: r4(bb[1][0] - bb[0][0]), ds_ref: ref });
       else warnings.push({ code: "ds_op_type_unknown", message: "Operation type '" + op.type + "' (index " + op.index + ", Q" + qn + ") is not drawn; it is kept in the DS manifest.", question: qn });
     });

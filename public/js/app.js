@@ -1,9 +1,10 @@
 // Redpen — answer copy annotation tool.
 import * as pdfjsLib from "../vendor/pdfjs/pdf.min.mjs";
-import { CONFIG, TOOLS, STAMPS, COLORS, SPR, SPRIMG, RED, PENC, TEAMS, BOARDS, CLASSES, SUBJECTS, OTHER_SUBJECT, QTYPES, OTHER_TYPE, SUBJECTIVE, PARAM_MAX, EDGE } from "./config.js";
+import { CONFIG, TOOLS, STAMPS, COLORS, SPR, SPRIMG, RED, PENC, TEAMS, BOARDS, CLASSES, SUBJECTS, OTHER_SUBJECT, QTYPES, OTHER_TYPE, SUBJECTIVE, PARAM_MAX, EDGE, IMPORT_LIMITS } from "./config.js";
 import { uid, clamp, r4, isRect, fsOf, fsCq, mkQ, fresh, normalize, check, half, num, toShown, fromShown, countMarks, marksProblem, coverTotal, fileBase, fileSafe, testLabel, numbered as numberedOf, totals as totalsOf, core, isEdited } from "./model.js";
 import { isDsCallback, isDsManifest, fromDs } from "./ds.js";
 import { buildExport, applyImport, exportPdf, exportHtml, renderPages, downloadFile } from "./export.js";
+import { parseJsonText, validateJson, matchCopy, sha256Hex } from "./importer.js";
 
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -23,7 +24,7 @@ const PDF_OPTS = { cMapUrl: base + "cmaps/", cMapPacked: true, standardFontDataU
 const freshS = () => fresh(lsGet("reviewer") || "");
 let S = freshS();
 let tool = "select", color = "red", stampSel = "Good", activeQ = 1, selId = null, zoom = 1, fbOn = true, tab = "marks", fbAll = false;
-let pages = [], fileName = "", fileKey = "", curPage = 0, focusPop = false, drag = null, saveT = null, dirty = false, jsonMode = "resume";
+let fileMeta = null, pages = [], fileName = "", fileKey = "", curPage = 0, focusPop = false, drag = null, saveT = null, dirty = false, jsonMode = "resume";
 let hist = [], hp = -1;
 
 const curQ = () => S.questions.find((q) => q.id === activeQ) || S.questions[0];
@@ -83,7 +84,7 @@ function renderOpts(){
   if(q) h+=`<div class="grp right"><button type="button" class="btn" data-qprev ${idx<=0?"disabled":""}>‹ Previous</button><button type="button" class="btn ${qDone(q)?"primary":""}" data-qnext>${last?"Finish and check":"Next question ›"}</button></div>`;
   h+=`</div>`;
   let tl="";
-  if(["box","underline","text","circle","pen"].indexOf(tool)>=0){
+  if(tool==="box"){
     tl+=`<div class="grp"><span class="lbl">Colour</span>`;
     ["red","yellow","green"].forEach(c=>{ if(tool!=="box"&&c==="yellow") return;
       const lab=(tool==="box"||tool==="underline")?COLORS[c].label:(c==="red"?"Red":"Green");
@@ -249,7 +250,7 @@ function penSvg(a){
   const r=shownRect(a), rot=r.rot, dx=(r.x1-r.x0)||1e-6, dy=(r.y1-r.y0)||1e-6;
   const pts=(a.pts||[]).map(q=>{ const s=toShown(a.x+q[0]*a.w,a.y+q[1]*a.h,rot); return (((s[0]-r.x0)/dx)*100).toFixed(2)+","+(((s[1]-r.y0)/dy)*100).toFixed(2); }).join(" ");
   const sw=Math.max(1.6,pageWidth()*.0042);
-  return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible"><polyline points="${pts}" fill="none" stroke="${PENC[a.color]||RED}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+  return `<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:100%;overflow:visible"><polyline points="${pts}" fill="none" stroke="${RED}" stroke-width="${sw}" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
 function setSpr(el,key,a){ const sp=SPR[key]; el.style.width=(sp.cq*(a.sc||1))+"cqw"; el.innerHTML='<img src="'+sp.src+'" alt="" draggable="false">'; }
 // Ticks, crosses, stamps and circled scores are resized by dragging their corner.
@@ -264,11 +265,11 @@ function annEl(a,num){
   } else if(a.type==="tick"||a.type==="cross"){ setSpr(el,a.type,a); }
   else if(a.type==="score"){ el.textContent=a.value||"0"; if(a.sc) el.style.setProperty("--k",a.sc); }
   else if(a.type==="stamp"){ if(SPR[a.stamp]){ el.classList.add("simg"); setSpr(el,a.stamp,a); } else el.textContent=a.stamp; }
-  else if(a.type==="underline"){ el.classList.add("c-"+a.color); el.innerHTML=`<span class="ln"></span>`+(a.text?`<span class="cm">💬</span>`:""); el.title=a.text||""; }
+  else if(a.type==="underline"){ el.classList.add("c-red"); el.innerHTML=`<span class="ln"></span>`+(a.text?`<span class="cm">💬</span>`:""); el.title=a.text||""; }
   else if(a.type==="strike"){ el.innerHTML=`<span class="ln"></span>`; }
-  else if(a.type==="text"){ el.classList.add("c-"+a.color); el.textContent=a.value||""; el.style.fontSize=fsCq(a)+"cqw"; el.style.textAlign=a.al||"left"; }
-  else if(a.type==="circle"){ el.classList.add("c-"+a.color); }
-  else if(a.type==="pen"){ el.classList.add("c-"+a.color); el.innerHTML=penSvg(a); }
+  else if(a.type==="text"){ el.classList.add("c-red"); el.textContent=a.value||""; el.style.fontSize=fsCq(a)+"cqw"; el.style.textAlign=a.al||"left"; }
+  else if(a.type==="circle"){ el.classList.add("c-red"); }
+  else if(a.type==="pen"){ el.classList.add("c-red"); el.innerHTML=penSvg(a); }
   if(S.aiLoaded && !a._new){
     if(a.src==="ai"&&isEdited(a)) el.insertAdjacentHTML("beforeend",`<span class="bdg" title="Edited from AI draft">edited</span>`);
     else if(a.src!=="ai") el.insertAdjacentHTML("beforeend",`<span class="bdg" title="Added">new</span>`);
@@ -327,7 +328,7 @@ function popEl(a,num){
     h+=`<div class="ph">Box #${num||""} · Q${a.q} ${dots(["red","yellow","green"])}</div>
       <textarea data-ann="${a.id}" class="${a.text.trim()?"":"req"}" placeholder="Feedback (required)">${esc(a.text)}</textarea>`;
   } else if(a.type==="underline"){
-    h+=`<div class="ph">Underline ${dots(["red","green"])}</div>
+    h+=`<div class="ph">Underline</div>
       <textarea data-ann="${a.id}" placeholder="Comment (optional)">${esc(a.text)}</textarea>`;
   } else if(a.type==="tick"||a.type==="cross"){
     h+=`<div class="ph">${a.type==="tick"?"Tick":"Cross"}</div><div class="row" style="margin-top:0;justify-content:flex-start"><button class="sm" data-do="flip">Change to ${a.type==="tick"?"✕ cross":"✓ tick"}</button></div>${SC}`;
@@ -337,12 +338,12 @@ function popEl(a,num){
     h+=`<div class="ph">Stamp</div><div class="chips">`+STAMPS.map(s=>`<button class="chip ${a.stamp===s?"on":""}" data-st="${esc(s)}">${esc(s)}</button>`).join("")+`</div>`+SC;
   } else if(a.type==="text"){
     const AL={left:"M0 1h14M0 5h9M0 9h12",center:"M0 1h14M2.5 5h9M1 9h12",right:"M0 1h14M5 5h9M2 9h12"};
-    h+=`<div class="ph">Text ${dots(["red","green"])}</div><textarea class="wt" data-ann="${a.id}" placeholder="Type here">${esc(a.value)}</textarea>
+    h+=`<div class="ph">Text</div><textarea class="wt" data-ann="${a.id}" placeholder="Type here">${esc(a.value)}</textarea>
       <div class="trow"><span class="lbl">Size</span><button class="sm" data-fs="-1">−</button><input type="number" class="fsin" min="6" max="60" value="${fsOf(a)}" data-fsin><button class="sm" data-fs="1">+</button>
       <span class="lbl" style="margin-left:6px">Align</span>`+["left","center","right"].map(k=>`<button class="sm ${(a.al||"left")===k?"pri":""}" data-al="${k}" title="Align ${k}"><svg width="14" height="10" viewBox="0 0 14 10"><path d="${AL[k]}" stroke="currentColor" stroke-width="1.6" fill="none"/></svg></button>`).join("")+`</div>
       <div class="trow"><span class="lbl">Rotate</span><button class="sm" data-rot="-5">−</button><input type="number" class="fsin" min="-180" max="180" value="${a.rot||0}" data-rotin><span style="font-size:12px;color:var(--sub)">°</span><button class="sm" data-rot="5">+</button><button class="sm" data-rot0="1">Straight</button></div>`;
-  } else if(a.type==="circle"){ h+=`<div class="ph">Circle ${dots(["red","green"])}</div>`;
-  } else if(a.type==="pen"){ h+=`<div class="ph">Pen ${dots(["red","green"])}</div>`;
+  } else if(a.type==="circle"){ h+=`<div class="ph">Circle</div>`;
+  } else if(a.type==="pen"){ h+=`<div class="ph">Pen</div>`;
   } else { h+=`<div class="ph">Strike-through</div>`; }
   if(!a.total) h+=`<div class="qrow2"><span class="lbl">Question</span><select data-qsel>${S.questions.map(q=>`<option value="${q.id}" ${q.id===a.q?"selected":""}>Q${q.id}</option>`).join("")}</select></div>`;
   h+=`<div class="row">`;
@@ -442,7 +443,7 @@ function startDraw(e,i,pgEl){
     selId=a.id; focusPop=true; renderOverlays(); return;
   }
   if(tool==="text"){
-    const tw=Math.max(.15,Math.min(.4,1-p.x)); const a=add({type:"text",page:i,x:r4(Math.min(p.x,1-tw)),y:r4(p.y),w:r4(tw),fs:12,al:"left",value:"",color:color==="green"?"green":"red",_new:true});
+    const tw=Math.max(.15,Math.min(.4,1-p.x)); const a=add({type:"text",page:i,x:r4(Math.min(p.x,1-tw)),y:r4(p.y),w:r4(tw),fs:12,al:"left",value:"",color:"red",_new:true});
     selId=a.id; focusPop=true; renderOverlays(); return;
   }
   if(tool==="stamp"){
@@ -454,7 +455,7 @@ function startDraw(e,i,pgEl){
     add({type:"stamp",page:i,x:r4(p.x),y:r4(p.y),stamp:stampSel}); commit(); renderOpts(); renderOverlays(i); renderSide(); return;
   }
   if(["box","underline","strike","circle","pen"].indexOf(tool)>=0){
-    const col=tool==="strike"?"red":(tool!=="box"&&color==="yellow"?"red":color);
+    const col=tool==="box"?color:"red";
     const a=add({type:tool,page:i,x:p.x,y:p.y,w:0,h:0,color:col,text:"",_draft:true});
     if(tool==="pen"){ a.raw=[[p.x,p.y]]; a.pts=[]; }
     drag={mode:"draw",id:a.id,r:r,rot:rotOf(i),sx:p.x,sy:p.y,page:i};
@@ -599,6 +600,11 @@ function renderMarks(){
   if(S.cohort==="foundation"&&S.meta.board) bits.push(S.meta.board+" class "+S.meta.klass);
   let h=`<div class="sidehead"><b>${esc(bits.join(" · "))}</b><button type="button" id="editSetup">Edit</button></div>`;
   if(!S.questions.length){ w.innerHTML=h+`<div class="empty-s">Add the copy details to start.</div>`; return; }
+  if(S.cohort==="foundation"){
+    // Overall feedback sits at the top of the right panel, before the questions
+    if(S.questions.every(qDone)) h+=`<div class="sumBox top"><h3>Overall feedback</h3><textarea id="overall" placeholder="Sum up how the student did on the whole copy: what went well and what to work on.">${esc(S.overall)}</textarea>${String(S.overall||"").trim()?"":`<div class="hintline">Pending. Write it before you finish the check.</div>`}</div>`;
+    else h+=`<div class="sumBox top"><h3>Overall feedback</h3><div class="hintline">Mark every question first. Then you can write the overall feedback here.</div></div>`;
+  }
   h+=`<div class="qlist">`+S.questions.map(x=>{
     const n=countMarks(S,x.id).total, sc=!x.attempted?"Not attempted":(qDone(x)?x.marks+" / "+x.max:"–");
     return `<button type="button" class="qli ${x.id===q.id?"act":""} ${qDone(x)?"done":""}" data-q="${x.id}"><i></i><b>Q${x.id}</b><span class="sc">${esc(sc)}</span><span class="nm" title="Marks drawn on the copy for this question">${n} on copy</span></button>`;
@@ -928,7 +934,7 @@ function addCoverTotal() {
   else add({ type: "score", q: 0, total: true, page: 0, x: 0.82, y: 0.1, value: c.want, sc: 1.3 });
   commit(); renderOverlays(0);
 }
-const data = () => buildExport({ S, pages, fileName, qpName: qp.has ? qp.name : "" });
+const data = () => buildExport({ S, pages, fileName, qpName: qp.has ? qp.name : "", fileMeta });
 function saveJson() { downloadFile(fileBase(S, baseName()) + ".redpen.json", JSON.stringify(data(), null, 2), "application/json"); dirty = false; }
 async function savePdf() {
   busy(true, "Building PDF…");
@@ -950,6 +956,9 @@ const GUIDE3 = [
 ];
 const TAGTXT = { nofb: "No feedback box", colour: "Marks and colours differ", "na-marks": "Not attempted, but has marks", nonote: "Special case: add a comment", objective: "Objective: use 0 or full marks", score: "Circled score differs", order: "Out of order" };
 const rv = { step: 1, t: [false, false, false], thumbs: [], res: null };
+// Foundation has one more step: the overall feedback comes after the marks, before the pages and guidelines.
+const rvSteps = () => (S.cohort === "foundation" ? ["marks", "overall", "pages", "guidelines"] : ["marks", "pages", "guidelines"]);
+const RVLABEL = { marks: "Marks", overall: "Overall feedback", pages: "Pages", guidelines: "Guidelines" };
 
 function submitReview() {
   if (!pages.length) { toast("Open a copy first."); return; }
@@ -960,7 +969,7 @@ function submitReview() {
 }
 // Three short steps: marks, pages, guidelines. Export appears after all three are ticked.
 function openReview(res) {
-  rv.step = 1; rv.t = [false, false, false]; rv.thumbs = []; rv.res = res; setReviewed(false);
+  rv.step = 1; rv.t = rvSteps().map(() => false); rv.thumbs = []; rv.res = res; setReviewed(false);
   openModal('<div id="rvRoot"></div>', () => {
     $("#modal").classList.add("wide", "xl");
     renderPages({ S, pages, W: 420, onPage: (cv, i) => { rv.thumbs[i] = cv; const slot = $("#rvTh" + i); if (slot) { slot.innerHTML = ""; slot.appendChild(cv); } } })
@@ -970,10 +979,10 @@ function openReview(res) {
 }
 function renderReview() {
   const root = $("#rvRoot"); if (!root) return;
-  const res = rv.res, st = rv.step, all = rv.t.every(Boolean);
-  const tick = (i, text) => `<label class="rvchk ${rv.t[i] ? "on" : ""}"><input type="checkbox" data-rvt="${i}" ${rv.t[i] ? "checked" : ""}><span>${esc(text)}</span></label>`;
-  let h = `<ol class="rvsteps">` + ["Marks", "Pages", "Guidelines"].map((l, i) => `<li class="${i + 1 === st ? "on" : ""} ${rv.t[i] ? "done" : ""}"><b>${rv.t[i] ? "✓" : i + 1}</b>${l}</li>`).join("") + `</ol>`;
-  if (st === 1) {
+  const res = rv.res, st = rv.step, all = rv.t.every(Boolean), names = rvSteps(), name = names[st - 1], ix = (n) => names.indexOf(n);
+  const tick = (i, text) => `<label class="rvchk ${rv.t[i] ? "on" : ""}"><input type="checkbox" data-rvt="${i}" ${rv.t[i] ? "checked" : ""} ${names[i] === "overall" && !String(S.overall || "").trim() ? "disabled" : ""}><span>${esc(text)}</span></label>`;
+  let h = `<ol class="rvsteps">` + names.map((n) => RVLABEL[n]).map((l, i) => `<li class="${i + 1 === st ? "on" : ""} ${rv.t[i] ? "done" : ""}"><b>${rv.t[i] ? "✓" : i + 1}</b>${l}</li>`).join("") + `</ol>`;
+  if (name === "marks") {
     const t = totals(), notes = res.warnings.filter((w) => w.kind === "marks" && !w.q);
     const cv = coverTotal(S);
     const cvMsg = cv.state === "ok" ? `\u2713 Written on the cover page: <b>${esc(cv.ann.value)}</b>` : cv.state === "stale" ? `The cover page says <b>${esc(cv.ann.value)}</b>, but the total is now <b>${esc(cv.want)}</b>.` : `Write the total for the whole test (<b>${esc(cv.want)}</b>) on the cover page of the copy.`;
@@ -986,7 +995,13 @@ function renderReview() {
       return `<tr class="${tags.length ? "flag" : ""}" data-gq="${q.id}"><td><b>Q${q.id}</b></td><td>${esc(q.max)}</td><td class="m">${q.attempted ? esc(q.marks) : 0}</td><td>${n}</td><td>${chk}</td></tr>`;
     }).join("") + `</table></div><p class="hintline">Tap a question to go back and fix it.</p>`;
     h += tick(0, `I checked every question. The total ${t.got} out of ${t.max} is fair for this copy, and the marks, the answer and the feedback agree.`);
-  } else if (st === 2) {
+  } else if (name === "overall") {
+    const has = !!String(S.overall || "").trim();
+    h += `<h2>Overall feedback</h2><p class="hintline" style="margin-top:-6px">All questions are marked. Sum up how <b>${esc(S.meta.student)}</b> did on the whole copy. The student sees this in the result.</p>`
+      + `<textarea class="prmfb" id="rvOverall" rows="7" placeholder="What went well, what to work on, and what to do next.">${esc(S.overall || "")}</textarea>`
+      + `<div class="warnitem" id="rvPend" ${has ? "hidden" : ""}>Overall feedback is pending. Write it to continue.</div>`;
+    h += tick(ix("overall"), "This overall feedback is ready to send to the student.");
+  } else if (name === "pages") {
     const pw = res.warnings.filter((w) => w.kind === "pages");
     h += `<h2>Check the pages</h2><p class="hintline">Pages are shown the way they will be saved. Tap a page to go to it.</p>` + pw.map((x) => `<div class="warnitem">${esc(x.msg)}</div>`).join("");
     h += `<div class="rvpages">` + pages.map((_, i) => {
@@ -994,13 +1009,13 @@ function renderReview() {
       const b = [tags.indexOf("turned") >= 0 ? "Turned " + rotOf(i) + "°" : "", tags.indexOf("empty") >= 0 ? "No marks" : "", tags.indexOf("unseen") >= 0 ? "Not viewed" : ""].filter(Boolean).map((x) => `<span class="tagc">${x}</span>`).join("");
       return `<button type="button" class="rvth" data-gp="${i}"><span class="slot" id="rvTh${i}">…</span><span class="cap">Page ${i + 1} · ${n} mark${n === 1 ? "" : "s"}</span>${b}</button>`;
     }).join("") + `</div>`;
-    h += tick(1, "Every page is the right way up, and the marks are on the right pages.");
+    h += tick(ix("pages"), "Every page is the right way up, and the marks are on the right pages.");
   } else {
-    h += `<h2>Guidelines</h2><ul class="rvguide">${GUIDE3.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` + tick(2, "I followed these guidelines. I gave no bonus or extra marks.");
+    h += `<h2>Guidelines</h2><ul class="rvguide">${GUIDE3.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` + tick(ix("guidelines"), "I followed these guidelines. I gave no bonus or extra marks.");
     if (all) h += `<div class="rvexp"><p class="rvdone">✓ All checks done. Save the files for the admin.</p><p class="hintline">They will be saved as <b>${esc(fileBase(S, "copy"))}</b>.redpen.json, .annotated.pdf and .evaluated.html</p><div class="rvbtns"><button class="btn" id="rvHtml">Save HTML</button><button class="btn" id="rvPdf">Save PDF</button><button class="btn primary" id="rvJson">Save JSON</button>${CONFIG.submitUrl ? '<button class="btn primary" id="rvSend">Send</button>' : ""}</div></div>`;
   }
   h += `<div class="rvfoot"><button class="btn" id="rvBack">${st === 1 ? "Back to the copy" : "‹ Back"}</button><span class="sp"></span>`;
-  if (st < 3) h += `<button class="btn primary" id="rvNext" ${rv.t[st - 1] && (st !== 1 || coverTotal(S).state === "ok") ? "" : "disabled"}>Continue ›</button>`;
+  if (st < names.length) h += `<button class="btn primary" id="rvNext" ${rv.t[st - 1] && (name !== "marks" || coverTotal(S).state === "ok") && (name !== "overall" || String(S.overall || "").trim()) ? "" : "disabled"}>Continue ›</button>`;
   else if (all) h += `<button class="btn" id="rvNew">Start next copy ›</button>`;
   h += `</div>`;
   root.innerHTML = h;
@@ -1012,7 +1027,7 @@ function renderReview() {
       const tt = totals(), r2 = check(S, pages.length, { viewed }), cv = coverTotal(S);
       // Everything the SME was shown and confirmed, saved with the JSON.
       S.review = {
-        completed_at: new Date().toISOString(), checks: ["marks", "pages", "guidelines"],
+        completed_at: new Date().toISOString(), checks: rvSteps().map((n) => (n === "overall" ? "overall_feedback" : n)), overall_feedback_written: S.cohort === "foundation" ? !!String(S.overall || "").trim() : undefined,
         total_confirmed: tt.got + " out of " + tt.max, cover_total_written: cv.ann.value, no_bonus_marks_confirmed: true,
         warnings_shown: r2.warnings.map((w) => w.msg),
         warnings: r2.warnings.map((w) => ({ message: w.msg, kind: w.kind, question: w.q || null, page: w.page == null ? null : w.page + 1 })),
@@ -1029,11 +1044,20 @@ function renderReview() {
   $$("[data-gp]", root).forEach((r) => (r.onclick = () => { closeModal(); goPage(+r.dataset.gp); }));
   const cvb = $("#rvCover");
   if (cvb) cvb.onclick = () => {
-    addCoverTotal(); rv.t = [false, false, false]; rv.res = check(S, pages.length, { viewed }); delete rv.thumbs[0]; renderReview();
+    addCoverTotal(); rv.t = rvSteps().map(() => false); rv.res = check(S, pages.length, { viewed }); delete rv.thumbs[0]; renderReview();
     renderPages({ S, pages, W: 420, only: [0], onPage: (cv, i) => { rv.thumbs[i] = cv; const slot = $("#rvTh" + i); if (slot) { slot.innerHTML = ""; slot.appendChild(cv); } } }).catch((e) => console.error(e));
   };
   const shw = $("#rvShow");
   if (shw) shw.onclick = () => { const a = coverTotal(S).ann; closeModal(); goPage(0); if (a) { setTool("select"); select(a.id); const el = $(`.an[data-id="${a.id}"]`); if (el) setTimeout(() => el.scrollIntoView({ block: "center", behavior: "smooth" }), 250); } };
+  const ovx = $("#rvOverall");
+  if (ovx) ovx.oninput = () => {
+    S.overall = ovx.value; saveSoon();
+    const has = !!ovx.value.trim(), cb = $(`[data-rvt="${ix("overall")}"]`), pend = $("#rvPend"), nxb = $("#rvNext");
+    if (pend) pend.hidden = has;
+    if (cb) cb.disabled = !has;
+    if (!has && rv.t[ix("overall")]) { rv.t[ix("overall")] = false; if (cb) cb.checked = false; setReviewed(false); const lb = cb && cb.closest(".rvchk"); if (lb) lb.classList.remove("on"); }
+    if (nxb) nxb.disabled = !(has && rv.t[ix("overall")]);
+  };
   const nx = $("#rvNext"); if (nx) nx.onclick = () => { rv.step++; renderReview(); $("#modal").scrollTop = 0; };
   $("#rvBack").onclick = () => { if (rv.step === 1) closeModal(); else { rv.step--; renderReview(); $("#modal").scrollTop = 0; } };
   if ($("#rvJson")) { $("#rvJson").onclick = saveJson; $("#rvPdf").onclick = savePdf; $("#rvHtml").onclick = saveHtml; }
@@ -1058,19 +1082,21 @@ const loadImg = (src) => new Promise((res, rej) => { const i = new Image(); i.on
 async function readCopy(list) {
   const files = Array.from(list || []); if (!files.length) return null;
   const pdf = files.find((f) => /pdf/i.test(f.type) || /\.pdf$/i.test(f.name));
-  const np = []; let key = "", name = "";
+  const np = []; let key = "", name = "", meta = { kind: "images", size: null, sha256: null };
   if (pdf) {
     const buf = await pdf.arrayBuffer();
+    const sha = await sha256Hex(buf).catch(() => null);   // before pdf.js takes the buffer
     const doc = await pdfjsLib.getDocument({ data: buf, ...PDF_OPTS }).promise;
     for (let p = 1; p <= doc.numPages; p++) { const pg = await doc.getPage(p); const vp = pg.getViewport({ scale: 1 }); np.push({ kind: "pdf", page: pg, w: vp.width, h: vp.height }); }
     key = pdf.name + "|" + pdf.size + "|" + doc.numPages; name = pdf.name;
+    meta = { kind: "pdf", size: pdf.size, sha256: sha };
   } else {
     const imgs = files.filter((f) => /^image\//.test(f.type)).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
     if (!imgs.length) throw new Error("type");
     for (const f of imgs) { const im = await loadImg(await readURL(f)); np.push({ kind: "img", img: im, w: im.naturalWidth, h: im.naturalHeight }); }
     key = imgs.map((f) => f.name + f.size).join("|").slice(0, 160); name = imgs.length > 1 ? imgs[0].name + " (+" + (imgs.length - 1) + ")" : imgs[0].name;
   }
-  return { np, name, key };
+  return { np, name, key, meta };
 }
 async function chooseCopy(list) {
   busy(true, "Opening…");
@@ -1111,17 +1137,21 @@ function renderWizard() {
       <label class="f wstu">Student name<input id="wizStudent" value="${esc(wiz.student)}" placeholder="e.g. Siddharth Jain" autocomplete="off"></label>
       <p class="hintline" id="wizFname">${esc(fnamePreview())}</p>
       <div class="drop ${p ? "has" : ""}" data-drop="copy"><strong>${p ? "✓ " + esc(p.name) : "Choose the answer copy"}</strong><span>${p ? p.np.length + " page" + (p.np.length === 1 ? "" : "s") + ". Choose another file to replace it." : "One PDF, or several photos. You can also drop it here."}</span></div>
-      <div class="wrow"><button class="btn primary big" id="wizStart" ${p && wiz.student.trim() ? "" : "disabled"}>Start evaluation</button>${pages.length ? '<button class="btn plain" id="wizCancel">Back to the copy I was marking</button>' : ""}</div>`;
+      <div class="wrow"><button class="btn primary big" id="wizStart" ${p && wiz.student.trim() ? "" : "disabled"}>Start evaluation</button><button class="btn" id="wizImport" title="Open a saved evaluation: its JSON together with the PDF of the same copy">Import</button>${pages.length ? '<button class="btn plain" id="wizCancel">Back to the copy I was marking</button>' : ""}</div>`;
   }
 }
-function startPending() { const p = wiz.pending; if (!p || !wiz.student.trim()) return; wiz.pending = null; startSession(p.np, p.name, p.key, false, cleanName(wiz.student)); }
+function startPending() { const p = wiz.pending; if (!p || !wiz.student.trim()) return; wiz.pending = null; startSession(p.np, p.name, p.key, false, cleanName(wiz.student), p.meta); }
 
-function startSession(np, name, key, demo, student) {
-  pages = np; fileName = name; fileKey = key; curPage = 0;
+function startSession(np, name, key, demo, student, meta, imported) {
+  pages = np; fileName = name; fileKey = key; fileMeta = meta || null; curPage = 0;
   let restored = false;
-  const d = lsGet("draft:" + key);
+  const d = imported ? null : lsGet("draft:" + key);
   if (d) { try { S = normalize(JSON.parse(d)); restored = true; } catch (e) {} }
-  if (!restored) {
+  if (!restored && imported) {
+    // An imported evaluation starts from the file alone: nothing is carried over from the copy that was open before.
+    S = freshS(); S.meta.copyId = baseName();
+    qp.doc = null; qp.img = null; qp.name = ""; qp.has = false;
+  } else if (!restored) {
     // The next copy of the same test has the same details, so carry them over. Marks start clean.
     const keep = S; S = freshS();
     S.meta = { ...S.meta, ...keep.meta, copyId: baseName(), student: "" };
@@ -1130,6 +1160,11 @@ function startSession(np, name, key, demo, student) {
     S.setupDone = !!demo || !!keep.setupDone;
   }
   if (student) S.meta.student = student;
+  if (imported) {
+    applyImport(S, imported, false, pages.length); normalize(S);
+    S.setupDone = !!(S.cohort && S.testTotal > 0 && S.questions.length);
+    // marks the file gave to Q1 for lack of a number etc. stay as the file says
+  }
   closeWizard();
   if (!S.evalId) { const d0 = new Date(), p2 = (n) => (n < 10 ? "0" : "") + n; S.evalId = "RP-" + d0.getFullYear() + p2(d0.getMonth() + 1) + p2(d0.getDate()) + "-" + Math.random().toString(36).slice(2, 6).toUpperCase(); }
   if (!S.startedAt) S.startedAt = new Date().toISOString();
@@ -1185,6 +1220,84 @@ function openJson(txts) {
   if (!S.setupDone) openSetup();
 }
 
+/* ---------------- import: a saved evaluation (JSON) together with the PDF of the same copy ---------------- */
+const imp = { tok: 0, jsonName: "", jv: null, jsonErr: "", pdf: null, pdfErr: "", match: null, confirm: false, loading: "" };
+function openImport() {
+  imp.tok++; Object.assign(imp, { jsonName: "", jv: null, jsonErr: "", pdf: null, pdfErr: "", match: null, confirm: false, loading: "" });
+  openModal('<div id="impRoot"></div>', () => { $("#modal").classList.add("wide"); renderImport(); const x = $("#mx"); if (x) x.addEventListener("click", () => imp.tok++); });
+}
+function impRecheck() {
+  imp.confirm = false;
+  imp.match = imp.jv && imp.jv.ok && imp.pdf ? matchCopy(imp.jv.clean, { pages: imp.pdf.pages, sha256: imp.pdf.r.meta.sha256, name: imp.pdf.r.name }) : null;
+}
+function renderImport() {
+  const root = $("#impRoot"); if (!root) return;
+  const j = imp.jv, p = imp.pdf, m = imp.match;
+  const canGo = !!(j && j.ok && p && m && m.ok && (m.level === "exact" || imp.confirm)) && !imp.loading;
+  const sm = j && j.ok ? j.summary : null;
+  const row = (kind, title, ok, name, line, err, btn) => `<div class="impRow ${ok ? "ok" : err ? "bad" : ""}"><b class="impI">${ok ? "✓" : err ? "!" : kind}</b><div class="impT"><strong>${title}</strong><span>${name ? esc(name) + " · " : ""}${esc(imp.loading === kind ? "Reading…" : line)}</span></div><button type="button" class="btn" data-imp="${kind === "1" ? "json" : "pdf"}">${name || err ? "Replace" : "Choose file"}</button></div>`;
+  let h = `<h2>Import a saved evaluation</h2><p class="hintline">Choose the JSON saved from Redpen and the PDF of the same answer copy. Both are needed. Nothing is changed until you press Import.</p>`;
+  h += row("1", "Saved evaluation (JSON)", !!(j && j.ok), imp.jsonName, sm ? (sm.cohort === "upsc" ? "UPSC" : "Foundation") + " · " + sm.questions + " question" + (sm.questions === 1 ? "" : "s") + " · " + sm.marks + " mark" + (sm.marks === 1 ? "" : "s") + " on " + sm.pages + " page" + (sm.pages === 1 ? "" : "s") + " · " + sm.feedback + " feedback box" + (sm.feedback === 1 ? "" : "es") + " · overall feedback " + (sm.overall ? "yes" : "no") : "Not chosen yet", imp.jsonErr || (j && !j.ok));
+  h += row("2", "Answer copy (PDF)", !!p && !(m && !m.ok), p ? p.r.name : "", p ? p.pages.length + " page" + (p.pages.length === 1 ? "" : "s") + (m && !m.ok ? " · does not match the JSON" : "") : "Not chosen yet", imp.pdfErr || (m && !m.ok));
+  if (imp.jsonErr) h += `<div class="errbox">${esc(imp.jsonErr)}</div>`;
+  if (j && !j.ok) h += `<div class="errbox"><b>This file cannot be imported.</b><ul>${j.errors.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>${j.moreErrors ? `<p>…and ${j.moreErrors} more.</p>` : ""}</div>`;
+  if (imp.pdfErr) h += `<div class="errbox">${esc(imp.pdfErr)}</div>`;
+  if (m && !m.ok) h += `<div class="errbox"><b>The PDF and the JSON do not match. Nothing was imported.</b><ul>${m.errors.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>`;
+  if (m && m.ok && m.level === "exact") h += `<div class="warnitem" style="border-color:#A8DEC1;background:rgba(22,179,100,.1)">✓ This is the same PDF the marks were made on.</div>`;
+  const notes = (j && j.ok ? j.warnings : []).concat(m && m.ok ? m.warnings : []);
+  if (notes.length) h += `<details class="impNotes" open><summary>${notes.length} note${notes.length === 1 ? "" : "s"} about this import</summary>${notes.map((x) => `<div class="warnitem">${esc(x)}</div>`).join("")}</details>`;
+  if (m && m.ok && m.level === "sizes") h += `<label class="rvchk ${imp.confirm ? "on" : ""}"><input type="checkbox" id="impConfirm" ${imp.confirm ? "checked" : ""}><span>I checked: this PDF is the same answer copy as the JSON.</span></label>`;
+  h += `<div class="rvfoot"><button class="btn" id="impCancel">Cancel</button><span class="sp"></span><button class="btn primary" id="impGo" ${canGo ? "" : "disabled"}>Import</button></div>`;
+  root.innerHTML = h;
+  $$("[data-imp]", root).forEach((b) => (b.onclick = () => $(b.dataset.imp === "json" ? "#fileImpJson" : "#fileImpPdf").click()));
+  $("#impCancel").onclick = () => { imp.tok++; closeModal(); };
+  $("#impGo").onclick = doImport;
+  const c = $("#impConfirm"); if (c) c.onchange = () => { imp.confirm = c.checked; renderImport(); };
+}
+async function impPickJson(f) {
+  const tok = ++imp.tok; imp.jv = null; imp.jsonErr = ""; imp.jsonName = f.name; imp.match = null; imp.loading = "1"; renderImport();
+  let txt = "";
+  try {
+    if (!f.size) throw new Error("The JSON file is empty.");
+    if (f.size > IMPORT_LIMITS.jsonBytes) throw new Error("The JSON file is too large (" + Math.round(f.size / 1048576) + " MB). The limit is " + Math.round(IMPORT_LIMITS.jsonBytes / 1048576) + " MB.");
+    txt = await f.text();
+  } catch (e) { if (tok !== imp.tok) return; imp.loading = ""; imp.jsonErr = e.message || "Could not read this file."; renderImport(); return; }
+  if (tok !== imp.tok) return;
+  imp.loading = "";
+  const r = parseJsonText(txt);
+  if (r.error) imp.jsonErr = r.error; else imp.jv = validateJson(r.json);
+  impRecheck(); renderImport();
+}
+async function impPickPdf(f) {
+  const tok = ++imp.tok; imp.pdf = null; imp.pdfErr = ""; imp.match = null; imp.loading = "2"; renderImport();
+  try {
+    if (!(/pdf/i.test(f.type) || /\.pdf$/i.test(f.name))) throw new Error("Choose the answer copy as a PDF.");
+    if (!f.size) throw new Error("The PDF file is empty.");
+    if (f.size > IMPORT_LIMITS.pdfBytes) throw new Error("The PDF is too large (" + Math.round(f.size / 1048576) + " MB). The limit is " + Math.round(IMPORT_LIMITS.pdfBytes / 1048576) + " MB.");
+    const r = await readCopy([f]);
+    if (tok !== imp.tok) return;
+    if (!r || !r.np.length) throw new Error("This PDF has no pages.");
+    if (r.np.length > IMPORT_LIMITS.pdfPages) throw new Error("This PDF has " + r.np.length + " pages. The limit is " + IMPORT_LIMITS.pdfPages + ".");
+    imp.pdf = { r, pages: r.np.map((q) => ({ w: q.w, h: q.h })) };
+  } catch (e) { if (tok !== imp.tok) return; imp.pdfErr = e && e.message && !/^type$/.test(e.message) && /^(Choose|The PDF|This PDF)/.test(e.message) ? e.message : "Could not open this PDF. It may be damaged or protected with a password."; }
+  if (tok !== imp.tok) return;
+  imp.loading = ""; impRecheck(); renderImport();
+}
+function doImport() {
+  const j = imp.jv, p = imp.pdf, m = imp.match;
+  if (!(j && j.ok && p && m && m.ok && (m.level === "exact" || imp.confirm))) return;
+  const r = p.r, clean = j.clean, notes = j.warnings.length;
+  imp.tok++; closeModal(); busy(true, "Importing…");
+  try {
+    startSession(r.np, r.name, r.key, false, clean.meta.student_name || "", r.meta, clean);
+    dirty = false; flushSave();
+    toast("Imported " + clean.annotations.length + " mark" + (clean.annotations.length === 1 ? "" : "s") + " and " + S.questions.length + " question" + (S.questions.length === 1 ? "" : "s") + "." + (notes ? " " + notes + " note" + (notes === 1 ? "" : "s") + " were shown before importing." : ""));
+  } catch (e) { console.error(e); toast("Could not import. Nothing was changed."); }
+  busy(false);
+}
+$("#fileImpJson").onchange = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) impPickJson(f); };
+$("#fileImpPdf").onchange = (e) => { const f = e.target.files && e.target.files[0]; e.target.value = ""; if (f) impPickPdf(f); };
+
 /* ---------------- wiring ---------------- */
 $("#btnOpen").onclick = () => openWizard();
 $("#file").onchange = (e) => { const f = e.target.files; chooseCopy(f).then(() => {}); e.target.value = ""; };
@@ -1204,6 +1317,7 @@ $("#wizard").addEventListener("click", (e) => {
   }
   else if (t.id === "btnDemo") makeDemo();
   else if (t.id === "wizStart") startPending();
+  else if (t.id === "wizImport") openImport();
   else if (t.id === "wizCancel") closeWizard();
   else if (t.dataset.drop === "qp") $("#fileQp").click();
   else if (t.dataset.drop === "copy") $("#file").click();

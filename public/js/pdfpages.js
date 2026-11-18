@@ -84,6 +84,12 @@ export function frontPages(R) {
     const o = R.overall;
     w.text(o.summary || "No overall feedback was written.", { font: "400 28px Kalam,cursive", color: RED, lh: 40 });
     [["Strengths", o.strengths], ["Improvements", o.improvements]].forEach(([t, a]) => { if (a && a.length) { w.text(t, { font: "600 26px 'Reddit Sans',sans-serif", lh: 38 }); a.forEach((s) => w.text("• " + s, { font: "400 26px Kalam,cursive", color: RED, lh: 38, gap: 4 })); } });
+  } else if (R.overall && (R.overall.summary || (R.overall.strengths || []).length || (R.overall.improvements || []).length)) {
+    // Foundation: one page, only once the overall feedback has been written
+    w.next(); w.head("Overall Feedback", 34);
+    const o = R.overall;
+    if (o.summary) w.text(o.summary, { font: "400 28px Kalam,cursive", color: RED, lh: 40 });
+    [["Strengths", o.strengths], ["Improvements", o.improvements]].forEach(([t, a]) => { if (a && a.length) { w.text(t, { font: "600 26px 'Reddit Sans',sans-serif", lh: 38 }); a.forEach((s) => w.text("• " + s, { font: "400 26px Kalam,cursive", color: RED, lh: 38, gap: 4 })); } });
   }
   return w.pages;
 }

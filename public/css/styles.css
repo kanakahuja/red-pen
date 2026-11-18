@@ -132,7 +132,7 @@ input,textarea,select{font-family:inherit;color:var(--ink)}
 .an.strike.vl .ln{width:.4cqw;margin-left:-.2cqw}
 .an .ln{position:absolute;left:0;right:0;top:50%;height:.36cqw;margin-top:-.18cqw;border-radius:1cqw}
 .an.strike .ln{height:.4cqw;margin-top:-.2cqw;background:#BF2734}
-.an.underline.c-red .ln{background:#BF2734}.an.underline.c-green .ln{background:#1B7938}
+.an.underline .ln{background:#BF2734}
 .an .cm{position:absolute;right:-1cqw;top:-1.6cqw;font-size:2.6cqw;line-height:1}
 .an .h{position:absolute;width:12px;height:12px;background:#fff;border:2px solid var(--primary);border-radius:3px;touch-action:none;z-index:2}
 .h.nw{left:-8px;top:-8px;cursor:nwse-resize}.h.ne{right:-8px;top:-8px;cursor:nesw-resize}
@@ -142,9 +142,9 @@ input,textarea,select{font-family:inherit;color:var(--ink)}
 .an .bdg{position:absolute;top:-9px;right:-9px;background:var(--primary);color:#fff;font:700 9px 'Reddit Sans',sans-serif;padding:2px 5px;border-radius:99px;z-index:1}
 
 .an.text{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1;font-weight:400;font-style:normal;letter-spacing:0;transform-origin:left top}
-.an.text.c-red{color:#BF2734}.an.text.c-green{color:#1B7938}
+.an.text{color:#BF2734}
 .an.circle{border:.4cqw solid;border-radius:50%}
-.an.circle.c-red{border-color:#BF2734}.an.circle.c-green{border-color:#1B7938}
+.an.circle{border-color:#BF2734}
 .an.pen svg{display:block}
 .pop textarea.wt{min-height:58px;font-family:'Kalam',cursive;font-size:15px;color:var(--red)}
 .pop .trow{display:flex;align-items:center;gap:5px;margin-top:8px;flex-wrap:wrap}
@@ -192,6 +192,7 @@ input,textarea,select{font-family:inherit;color:var(--ink)}
 .prm input{width:58px;font-size:15px;padding:5px}
 .sumBox{border-top:1px dashed var(--line);margin-top:6px;padding-top:12px}
 .sumBox h3{margin:0 0 6px;font-size:13px}
+.sumBox.top{border-top:0;margin:0 0 10px;padding:2px 0 12px;border-bottom:1px dashed var(--line)}
 .sumBox textarea,.fbi textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:12.5px;min-height:64px;resize:vertical;line-height:1.45;background:var(--panel)}
 .fbi{border-left:4px solid;border-radius:8px;padding:8px 8px 8px 10px;margin-bottom:9px;background:var(--panel);border-top:1px solid var(--line);border-right:1px solid var(--line);border-bottom:1px solid var(--line);cursor:pointer}
 .fbi.red{border-left-color:#F04438}.fbi.yellow{border-left-color:#EAAA2E}.fbi.green{border-left-color:#16B364}
@@ -454,6 +455,15 @@ input,textarea,select{font-family:inherit;color:var(--ink)}
 /* hero heading: same family as the wordmark, lighter weight so the logo stays the lead */
 .sp-land h1{font-family:"Reddit Sans",system-ui,sans-serif;font-weight:500;font-size:clamp(20px,3.4vw,28px);line-height:1.35;letter-spacing:0;max-width:17em;text-wrap:balance}
 .sp-land h1 b{font-weight:700}
+
+/* ---------- import ---------- */
+.impRow{display:flex;align-items:center;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;margin-bottom:9px}
+.impRow.ok{border-color:var(--green-d);background:rgba(22,179,100,.07)}.impRow.bad{border-color:#F4B7B2;background:rgba(240,68,56,.06)}
+.impI{width:28px;height:28px;border-radius:50%;background:var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+.impRow.ok .impI{background:var(--green-d);color:#fff}.impRow.bad .impI{background:#D92D20;color:#fff}
+.impT{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.impT span{font-size:12.5px;color:var(--sub);overflow-wrap:anywhere}
+.impNotes{margin:6px 0 10px}.impNotes summary{cursor:pointer;font-weight:600;font-size:13px;margin-bottom:6px}
+.errbox ul{margin:6px 0 0;padding-left:18px}
 
 /* ---------- tablets and touch ---------- */
 html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
